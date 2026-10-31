@@ -33,7 +33,7 @@
 
 ## 5. Migrate `components/Chime.jsx`
 
-- [ ] 5.1 Update `Param`: utility classes, the `.lead` leader, and a `${id}-label` id on the key span. Convert the layout classes (`main`, stage, sheet, params, status, note, sfrow, checks, transport, tubes grid, h1, lede, hr) to utilities. Verify: the 1280 px and 375 px screenshots match the baseline layout (differences limited to control internals), and there is no horizontal scroll at 375 px.
+- [x] 5.1 Update `Param`: utility classes, the `.lead` leader, and a `${id}-label` id on the key span. Convert the layout classes (`main`, stage, sheet, params, status, note, sfrow, checks, transport, tubes grid, h1, lede, hr) to utilities. Verify: the 1280 px and 375 px screenshots match the baseline layout (differences limited to control internals), and there is no horizontal scroll at 375 px.
 - [x] 5.2 Replace all buttons with `Button`, keeping `aria-pressed`, `disabled` and `onClick`. Verify: SOUND ON/OFF and REC/STOP invert while pressed, and SAVE MIDI is disabled with no take.
 - [x] 5.3 Replace the 4 range inputs with `Slider` (same `min`/`max`/`step`, `value={[x]}`, `onValueChange`, `aria-labelledby`). Verify: arrow keys step WIND 0.45 → 0.46, Home/End on DECAY give 0.3/12.0, and the row values update live.
 - [x] 5.4 Replace ROOT, SCALE (with groups), SOUNDFONT (with groups) and CHANNEL with `Select` using string values. Verify: keyboard choose and Escape-keeps-value work on ROOT, the groups render on SCALE and SOUNDFONT, and the voice change still updates `prog` and the MIDI readout.
