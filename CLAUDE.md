@@ -53,13 +53,13 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 ## Commands
 
 ```bash
-npm install
-npm run dev     # http://localhost:3000
-npm run build
-npm run start   # serve the production build
+pnpm install
+pnpm dev        # http://localhost:3000
+pnpm build
+pnpm start      # serve the production build
 ```
 
-There are no `lint` or `test` scripts. There is no lockfile yet; Vercel resolves `^` ranges at build time. Commit one (`npm install` then add `package-lock.json`) if reproducible builds matter.
+There are no `lint` or `test` scripts. The package manager is pnpm: `pnpm-lock.yaml` is committed and Vercel installs from it with a frozen lockfile, so update it (`pnpm install`) whenever `package.json` changes or the deploy fails. Don't add a `package-lock.json` alongside it.
 
 ## Testing
 
@@ -78,7 +78,7 @@ Pushing to `main` deploys production on Vercel (project `windchime`, team `db13`
 ## Ideas not done yet
 
 - MIDI input (strike tubes from a controller), MIDI clock sync
-- A lockfile and Vitest
+- Vitest
 - Per-tube tuning in cents (true wind-chime tunings, not just 12-TET), and microtonal scales sent as MIDI pitch bend
 - Reverb/space, stereo spread of tubes
 - Saving and sharing presets (URL hash or JSON)
