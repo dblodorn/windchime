@@ -69,9 +69,10 @@ export default function Chime() {
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
 
   // MIDI out
-  const [midiReady, setMidiReady] = useState(false);
+  // null until mounted: the server has no navigator, so support is only known in the browser
+  const [midiSupported, setMidiSupported] = useState(null);
+  const [midi, setMidi] = useState(() => M.status());
   const [midiPorts, setMidiPorts] = useState([]);
-  const [midiOut, setMidiOut] = useState("");
   const [midiCh, setMidiCh] = useState(1);
   const [sendProg, setSendProg] = useState(true);
   const [sendCC, setSendCC] = useState(true);
@@ -145,14 +146,14 @@ export default function Chime() {
     setMidiCh(store.get("midiCh", 1));
     setSendProg(store.get("sendProg", true));
     setSendCC(store.get("sendCC", true));
+    setMidiSupported(M.supported());
     if (!M.supported()) setMidiMsg("This browser has no Web MIDI. Use Chrome, Edge or Firefox on a computer.");
-    return M.onChange(() => {
-      const ports = M.listOutputs();
-      setMidiPorts(ports);
-      const cur = M.currentOutput();
-      setMidiOut(cur ? cur.id : "");
-    });
+    const sync = () => { setMidi(M.status()); setMidiPorts(M.listOutputs()); };
+    sync();
+    return M.onChange(sync);
   }, []);
+  // remember the chosen port by name, so it is picked again on the next connect or replug
+  useEffect(() => { if (midi.connected) store.set("midiOutName", midi.wanted); }, [midi.connected, midi.wanted]);
   useEffect(() => { M.setChannel(midiCh - 1); store.set("midiCh", midiCh); }, [midiCh]);
   useEffect(() => { store.set("sendProg", sendProg); store.set("sendCC", sendCC); }, [sendProg, sendCC]);
   useEffect(() => { E.setMuted(!localSound); }, [localSound]);
@@ -160,28 +161,19 @@ export default function Chime() {
   const onMidiConnect = async () => {
     setMidiMsg("asking the browser for MIDI access");
     try {
-      const ports = await M.connect();
-      setMidiReady(true);
-      setMidiPorts(ports);
-      const savedName = store.get("midiOutName", "");
-      const pick = ports.find(p => p.name === savedName) || (ports.length === 1 ? ports[0] : null);
-      if (pick) choosePort(pick.id);
-      setMidiMsg(ports.length ? "" : "No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).");
+      M.setWanted(store.get("midiOutName", ""));
+      await M.connect();
+      setMidiMsg("");
     } catch (err) {
-      setMidiMsg(err && err.name === "SecurityError" ? "MIDI access was blocked. Allow it in the browser's site settings and try again." : (err.message || "MIDI access failed."));
+      const blocked = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
+      setMidiMsg(blocked
+        ? "MIDI access was blocked. Open the site settings (the icon left of the address bar), allow MIDI devices for this site, then press CONNECT MIDI again. In Firefox, accept the site permission prompt."
+        : (err && err.message) || "MIDI access failed.");
     }
   };
-  const choosePort = id => {
-    M.selectOutput(id);
-    setMidiOut(id);
-    const port = M.currentOutput();
-    if (port) {
-      store.set("midiOutName", port.name);
-      M.setChannel(midiCh - 1);
-      if (sendProg) M.program(prog.bank, prog.prog);
-      if (sendCC) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); }
-    }
-  };
+  // program change and CCs follow from the linkSeq effects below
+  const choosePort = id => { M.selectOutput(id); };
+  const onTestNote = () => { M.testNote(E.noteOf(0)); setMidiCount(n => n + 1); };
 
   // recording readout
   useEffect(() => {
@@ -250,11 +242,16 @@ export default function Chime() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const groups = useMemo(() => voiceGroups(), [fontsVersion]);
   const prog = useMemo(() => { E.chooseVoice(voice); return E.midiProgram(); }, [voice, fontsVersion]);
-  useEffect(() => { if (sendProg && M.currentOutput()) M.program(prog.bank, prog.prog); }, [prog, sendProg, midiOut, midiCh]);
-  useEffect(() => { if (sendCC && M.currentOutput()) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); } }, [cutX, q, sendCC, midiOut, midiCh]);
+  // linkSeq bumps each time a port becomes live (chosen, auto-picked or plugged back in)
+  const link = midi.linkSeq;
+  useEffect(() => { if (sendProg && M.currentOutput()) M.program(prog.bank, prog.prog); }, [prog, sendProg, link, midiCh]);
+  useEffect(() => { if (sendCC && M.currentOutput()) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); } }, [cutX, q, sendCC, link, midiCh]);
 
+  const midiReady = midi.connected;
+  const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
   const midiLine = !midiReady ? "MIDI    not connected"
-    : midiOut ? `MIDI    ${(midiPorts.find(p => p.id === midiOut) || {}).name || "port"}   CH ${midiCh}   ${midiCount} NOTES SENT`
+    : midi.port ? `MIDI    ${midi.port.name.toUpperCase()}   ${midi.port.state === "connected" ? "CONNECTED" : "DISCONNECTED"} · ${(midi.port.connection || "closed").toUpperCase()}   CH ${midiCh}   ${midiCount} NOTES SENT`
+    : midi.wanted ? `MIDI    ${midi.wanted.toUpperCase()}   DISCONNECTED`
     : "MIDI    choose an interface";
   const voiceTag = voice[0] === "s" ? (E.fonts[+voice.slice(1).split(":")[0]]?.gm ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SF2") : "SYNTH";
 
@@ -340,12 +337,13 @@ export default function Chime() {
           <Param id="m-out" label="MIDI OUT" value={midiReady ? (midiPorts.length + " PORT" + (midiPorts.length === 1 ? "" : "S")) : "OFF"}>
             {!midiReady ? (
               <div className="sfrow">
-                <button onClick={onMidiConnect} disabled={!M.supported()}>CONNECT MIDI</button>
+                <button onClick={onMidiConnect} disabled={midiSupported === false}>CONNECT MIDI</button>
                 <span className="note">Send every strike to a MIDI device or another app.</span>
               </div>
             ) : (
               <select id="m-out" value={midiOut} onChange={e => choosePort(e.target.value)}>
                 <option value="">NONE</option>
+                {!midi.port && midi.wanted && <option value="wanted" disabled>{midi.wanted.toUpperCase()}   DISCONNECTED</option>}
                 {midiPorts.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}{p.manufacturer ? "   " + p.manufacturer.toUpperCase() : ""}</option>)}
               </select>
             )}
@@ -363,12 +361,15 @@ export default function Chime() {
                 <label><input type="checkbox" checked={localSound} onChange={e => setLocalSound(e.target.checked)} /> PLAY SOUND IN BROWSER TOO</label>
               </div>
               <div className="sfrow">
+                <button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</button>
                 <button onClick={() => M.allNotesOff()}>PANIC</button>
-                <span className="note">Note length follows DECAY. PANIC sends All Notes Off on the chosen channel.</span>
+                <span className="note">Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
               </div>
             </>
           )}
           {midiMsg && <p className="note">{midiMsg}</p>}
+          {midi.error && <p className="note">{midi.error}</p>}
+          {midiReady && !midiPorts.length && <p className="note">No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
         </div>
         <hr />
         <div className="transport">
