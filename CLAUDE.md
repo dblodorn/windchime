@@ -2,7 +2,7 @@
 
 A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc clapper, and every strike on a tube is a note. It plays in the browser (Tone.js + an SF2 sampler), sends live MIDI to hardware (Web MIDI), and exports `.mid` files.
 
-- Live: https://windchime-lyart.vercel.app (Vercel project `windchime`, team `db13`)
+- Live: https://chime.dmbk.io (Vercel project `windchime`, team `db13`; also served at https://windchime-lyart.vercel.app). DNS for dmbk.io is on DigitalOcean: `chime` is a CNAME to the Vercel project target `34679086444df785.vercel-dns-016.com`.
 - Repo: https://github.com/dblodorn/windchime. Every push to `main` deploys to production.
 
 ## Stack
