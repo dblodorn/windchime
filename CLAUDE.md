@@ -55,15 +55,16 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 npm install
 npm run dev     # http://localhost:3000
 npm run build
+npm run start   # serve the production build
 ```
 
-There is no lockfile yet; Vercel resolves `^` ranges at build time. Commit one (`npm install` then add `package-lock.json`) if reproducible builds matter.
+There are no `lint` or `test` scripts. There is no lockfile yet; Vercel resolves `^` ranges at build time. Commit one (`npm install` then add `package-lock.json`) if reproducible builds matter.
 
 ## Testing
 
 No automated tests yet. What has worked so far:
 
-- **Engine in Node**: `lib/engine.js` imports cleanly in Node (no DOM at top level). You can `addFont` the `.sf2` from `public/`, `chooseVoice`, `setParams`, `renderTake(60)`, and `buildMidi` without a browser.
+- **Engine in Node**: `lib/engine.js` imports cleanly in Node (no DOM at top level). You can `addFont` the `.sf2` from `public/`, `chooseVoice`, `setParams`, `renderTake(60)`, and `buildMidi` without a browser. Smoke test: `node -e 'import("./lib/engine.js").then(m => console.log(m.SCALE_LIST.length))'` (prints 27). Node warns that the module type isn't specified, because `package.json` has no `"type": "module"`. That's harmless. Don't add the field without checking `next build`.
 - **UI in headless Chromium**: Playwright is fine for this. Stub `navigator.requestMIDIAccess` with fake outputs that record `send()` calls, and check the bytes (`0x9n`/`0x8n` on the chosen channel, `0xBn 74/71`, `0xBn 123` on PANIC).
 - Things only a person can check: real audio output, iOS behavior, real MIDI hardware.
 
