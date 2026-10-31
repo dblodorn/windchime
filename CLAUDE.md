@@ -30,15 +30,20 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 
 ### lib/engine.js sections, in order
 
-1. **Raster**: 192×232 1-bit buffer (`px`, `line`, `fillPoly`, `ellipse`, `fillEllipse`, `present`). Black on white only.
+1. **Raster**: 200×200 1-bit buffer (`px`, `line`, `present`). Black on white only. The figure is still computed in the original 192×232 three-quarter projection and mapped onto the paper by one scale, `toX/toY` with `K = 0.8, TOP = 0`. `seg()` draws a line through that transform, and `outline(cx, cy, rx, ry, n)` is a closed ellipse made of `n` straight `seg`s. K was set from measured extents: the figure fits at rest and in about 99% of frames at WIND 0.45. Stronger gusts clip at the paper edge, by choice; never limit the sim to avoid it.
 2. **Pitch and scales**: `noteName`, `mtof`, `cutoffHz(x) = 60·2^(8x)` (slider 0..1 → 60 Hz–15 kHz), `SCALES` (grouped; 27 scales, Ryukyu first), `SCALE_LIST`, `sixOf(deg)` (first six notes, climbing octaves).
 3. **Params**: the single mutable object `P` (wind, decay, cutX, cutoff, q, root, scale). React pushes into it with `setParams`. `noteOf(i) = P.root + P.scale[i]`.
 4. **Geometry + simulation**: `makeSim(seed)` and `step(sim, dt, onHit)` at a fixed 240 Hz. Wind is an Ornstein–Uhlenbeck force with `sqrt(P.wind)` scaling; the clapper is a damped spring; the tubes have their own springs; strikes are impulse collisions with restitution. Velocity is `24 + 1.1·|vr|` (clamped 1..127), with an 80 ms per-tube cooldown. The constants were tuned by measuring strikes per minute (≈1 at wind 0.1, ≈17 at 0.2, ≈57 at 0.45, ≈80 at 0.8). Re-measure if you change them.
-5. **Drawing**: `draw()` depth-sorts the tubes and clapper; the tubes shimmer while their envelope `tb.env` is above 0.03.
+5. **Drawing** (*Design By Numbers* style): single-pixel lines only, no fills, so it's a wireframe with no depth sort.
+   - Order: wind dashes, hook, ring `outline` (24 segments), tubes, clapper `outline` (16) and sail rectangle, then fans.
+   - Tubes: `tubeGeom(i, tb)` gives each tube's string attach point, top and bottom; `drawTube` draws the string and an outlined body ±`RT` wide.
+   - Camera: every drawn sim position goes through `view(x, z)`, a `YAW = 20°` turn about the vertical axis. Without it, tubes 1/3 and 4/6 share a screen x and merge. The sim itself is not rotated.
+   - Strike fan: a ringing tube (`tb.env > 0.01`) gets `drawFan`, `3 + round(env·6)` lines over 80° from its lower end, pointing outward and down, `4 + env·26` long.
+   - Wind: `streaks` are solid dashes in projection space, wrapping at the paper edges `OX0`/`OX1`.
 6. **Audio**: chain is voices → native `bus` GainNode → `Tone.Filter` low-pass (FREQUENCY = cutoff, RESONANCE = Q, −12 dB/oct) → Compressor → Gain → destination. Built-in `VOICES` are additive partials (tubular bells 1/2.756/5.404/8.933, etc.) or a Tone `PolySynth(FMSynth)`, each mapped to a GM program for MIDI. `setMuted` silences the browser sound only.
 7. **SF2 sampler**: `parseSF2` (RIFF walk, phdr/pbag/pgen/inst/ibag/igen/shdr), `resolvePreset` (merges global and local zones; key/vel ranges, root override, coarse/fine tune, attenuation, pan, loop mode), `sampleBuffer` (lazy Int16 → AudioBuffer, cached per font), `playSF`. SF2 volume envelopes are ignored on purpose: DECAY sets every note's length. Attenuation uses the EMU/FluidSynth 0.4 factor.
 8. **Recording / takes**: `startRec`/`stopRec` (live, with filter CC changes), `renderTake(sec)` (offline sim with a fresh seed and 2 s settle), `onHit(fn)` listeners get `(tubeIndex, velocity)`.
-9. **Loop**: `attach(canvas)` starts requestAnimationFrame and returns the cleanup. `strikeAt(x, y)` takes canvas pixel coordinates.
+9. **Loop**: `attach(canvas)` starts requestAnimationFrame and returns the cleanup. `strikeAt(x, y)` takes paper pixel coordinates (0–200). It strikes the nearest tube within 6 px of its centerline and its height ±6. `tubeSegments()` returns each tube's centerline on the paper (handy for tests). The canvas is `box-content` with a 1px border outside the drawing, so `Chime.jsx` subtracts the 2 px border from the available width, sizes the drawing area to whole multiples of 200 where it fits, sets the readout width to canvas + 2, and maps taps through `clientLeft`/`clientWidth`.
 10. **MIDI file**: `buildMidi(take)` → format 0, 480 PPQ, 120 BPM; bank select + program; CC74/CC71 from the take's `cc` list; note-offs after DECAY (cut short by a re-strike of the same note). Drum kits (bank 128) go on channel 10.
 
 ### Voice ids
