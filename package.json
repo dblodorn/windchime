@@ -1,0 +1,20 @@
+{
+  "name": "windchime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A six-tube wind chime simulation that plays through Tone.js and SoundFont samples and exports MIDI.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.5.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "tone": "^15.0.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
