@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 
 const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
@@ -14,16 +18,39 @@ const store = {
   set(k, v) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
 };
 
+const rootText = m => `${E.noteName(m)}   ${E.mtof(m).toFixed(1)} HZ`;
+const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
+const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
+
+const NOTE = "m-0 max-w-[60ch] text-[13px]";
+const STATUS = "m-0 text-[13px] whitespace-pre-wrap tabular-nums";
+const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
+
+// LABEL ....... value, with the control beneath. Controls are named by `${id}-label`, the label text alone.
 function Param({ id, label, value, children }) {
   return (
-    <div className="param">
-      <label htmlFor={id}>
-        <span className="k">{label}</span>
+    <div>
+      <div className="flex items-baseline gap-2 tabular-nums">
+        <span id={`${id}-label`} className="tracking-[.08em]">{label}</span>
         <span className="lead" />
-        <span className="v">{value}</span>
-      </label>
+        <span className="whitespace-nowrap">{value}</span>
+      </div>
       {children}
     </div>
+  );
+}
+
+function ParamSlider({ id, value, onChange, ...range }) {
+  return <Slider id={id} value={[value]} onValueChange={([v]) => onChange(v)} aria-labelledby={`${id}-label`} {...range} />;
+}
+
+// `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render
+function ParamSelect({ id, value, display, onChange, children }) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id} aria-labelledby={`${id}-label`}><SelectValue>{display}</SelectValue></SelectTrigger>
+      <SelectContent>{children}</SelectContent>
+    </Select>
   );
 }
 
@@ -253,6 +280,9 @@ export default function Chime() {
     : midi.port ? `MIDI    ${midi.port.name.toUpperCase()}   ${midi.port.state === "connected" ? "CONNECTED" : "DISCONNECTED"} · ${(midi.port.connection || "closed").toUpperCase()}   CH ${midiCh}   ${midiCount} NOTES SENT`
     : midi.wanted ? `MIDI    ${midi.wanted.toUpperCase()}   DISCONNECTED`
     : "MIDI    choose an interface";
+  const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
+  const livePort = midi.port && midiPorts.find(p => p.id === midi.port.id);
+  const portText = livePort ? portName(livePort) : midi.wanted && !midi.port ? `${midi.wanted.toUpperCase()}   DISCONNECTED` : "NONE";
   const voiceTag = voice[0] === "s" ? (E.fonts[+voice.slice(1).split(":")[0]]?.gm ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SF2") : "SYNTH";
 
   const audioLine = !sound ? "AUDIO   off"
@@ -262,8 +292,8 @@ export default function Chime() {
     : take ? `TAKE    ${take.kind}   ${fmt(take.dur)}   ${take.hits.length} NOTES` : "TAKE    none yet";
 
   return (
-    <main>
-      <section className="stage" ref={stageRef}>
+    <main className="mx-auto grid max-w-[1060px] gap-7 min-[860px]:grid-cols-[minmax(0,480px)_minmax(0,1fr)] min-[860px]:items-start">
+      <section className="grid min-w-0 justify-items-start gap-3 min-[860px]:sticky min-[860px]:top-[max(20px,env(safe-area-inset-top,0px))]" ref={stageRef}>
         <canvas
           ref={canvasRef}
           width={E.W}
@@ -272,7 +302,7 @@ export default function Chime() {
           onPointerDown={onCanvasDown}
           aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
         />
-        <div className="tubes" style={{ width: canvasPx }}>
+        <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx }}>
           {scale.map((s, i) => {
             const m = root + s;
             return (
@@ -284,104 +314,107 @@ export default function Chime() {
         </div>
       </section>
 
-      <section className="sheet">
+      <section className="grid max-w-[520px] min-w-0 gap-[22px]">
         <header>
-          <h1>SIX TUBE CHIME</h1>
-          <p className="lede">Wind pushes the sail, the sail swings the clapper, the clapper strikes the tubes. Every strike is a MIDI note. Tap a tube to strike it by hand.</p>
+          <h1 className="m-0 text-[22px] font-bold tracking-[.08em] text-balance">SIX TUBE CHIME</h1>
+          <p className="mt-1.5 max-w-[60ch]">Wind pushes the sail, the sail swings the clapper, the clapper strikes the tubes. Every strike is a MIDI note. Tap a tube to strike it by hand.</p>
         </header>
-        <hr />
-        <div className="params">
+        <hr className="border-foreground" />
+        <div className="grid gap-3.5">
           <Param id="p-wind" label="WIND" value={wind.toFixed(2)}>
-            <input type="range" id="p-wind" min="0" max="1" step="0.01" value={wind} onChange={e => setWind(+e.target.value)} />
+            <ParamSlider id="p-wind" min={0} max={1} step={0.01} value={wind} onChange={setWind} />
           </Param>
           <Param id="p-decay" label="DECAY" value={decay.toFixed(1) + " S"}>
-            <input type="range" id="p-decay" min="0.3" max="12" step="0.1" value={decay} onChange={e => setDecay(+e.target.value)} />
+            <ParamSlider id="p-decay" min={0.3} max={12} step={0.1} value={decay} onChange={setDecay} />
           </Param>
           <Param id="p-freq" label="FREQUENCY" value={hz(cutoff)}>
-            <input type="range" id="p-freq" min="0" max="1" step="0.001" value={cutX} onChange={e => setCutX(+e.target.value)} />
+            <ParamSlider id="p-freq" min={0} max={1} step={0.001} value={cutX} onChange={setCutX} />
           </Param>
           <Param id="p-res" label="RESONANCE" value={"Q " + q.toFixed(1)}>
-            <input type="range" id="p-res" min="0.5" max="18" step="0.1" value={q} onChange={e => setQ(+e.target.value)} />
+            <ParamSlider id="p-res" min={0.5} max={18} step={0.1} value={q} onChange={setQ} />
           </Param>
           <Param id="p-root" label="ROOT" value={E.noteName(root)}>
-            <select id="p-root" value={root} onChange={e => setRoot(+e.target.value)}>
-              {ROOTS.map(m => <option key={m} value={m}>{E.noteName(m)}   {E.mtof(m).toFixed(1)} HZ</option>)}
-            </select>
+            <ParamSelect id="p-root" value={String(root)} display={rootText(root)} onChange={v => setRoot(+v)}>
+              {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
+            </ParamSelect>
           </Param>
           <Param id="p-scale" label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-            <select id="p-scale" value={scaleIdx} onChange={e => setScaleIdx(+e.target.value)}>
+            <ParamSelect id="p-scale" value={String(scaleIdx)} display={E.SCALE_LIST[scaleIdx].name} onChange={v => setScaleIdx(+v)}>
               {SCALE_GROUPS.map(g => (
-                <optgroup key={g} label={g.toUpperCase()}>
-                  {E.SCALE_LIST.map((s, i) => s.group === g && <option key={i} value={i}>{s.name}</option>)}
-                </optgroup>
+                <SelectGroup key={g}>
+                  <SelectLabel>{g.toUpperCase()}</SelectLabel>
+                  {E.SCALE_LIST.map((s, i) => s.group === g && <SelectItem key={i} value={String(i)}>{s.name}</SelectItem>)}
+                </SelectGroup>
               ))}
-            </select>
+            </ParamSelect>
           </Param>
           <Param id="p-voice" label="SOUNDFONT" value={voiceTag}>
-            <select id="p-voice" value={voice} onChange={e => setVoice(e.target.value)}>
+            <ParamSelect id="p-voice" value={voice} display={voiceText} onChange={setVoice}>
               {groups.map(g => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.items.map(it => <option key={it.value} value={it.value}>{it.text}</option>)}
-                </optgroup>
+                <SelectGroup key={g.label}>
+                  <SelectLabel>{g.label}</SelectLabel>
+                  {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
+                </SelectGroup>
               ))}
-            </select>
-            <div className="sfrow">
-              <button onClick={() => fileRef.current && fileRef.current.click()}>ADD .SF2 FILE</button>
+            </ParamSelect>
+            <div className={ROW}>
+              <Button onClick={() => fileRef.current && fileRef.current.click()}>ADD .SF2 FILE</Button>
               <input type="file" ref={fileRef} accept=".sf2" hidden onChange={onFile} />
-              <span className="note">{sfMsg}</span>
+              <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>{sfMsg}</span>
             </div>
           </Param>
         </div>
-        <hr />
-        <div className="params">
+        <hr className="border-foreground" />
+        <div className="grid gap-3.5">
           <Param id="m-out" label="MIDI OUT" value={midiReady ? (midiPorts.length + " PORT" + (midiPorts.length === 1 ? "" : "S")) : "OFF"}>
             {!midiReady ? (
-              <div className="sfrow">
-                <button onClick={onMidiConnect} disabled={midiSupported === false}>CONNECT MIDI</button>
-                <span className="note">Send every strike to a MIDI device or another app.</span>
+              <div className={ROW}>
+                <Button onClick={onMidiConnect} disabled={midiSupported === false}>CONNECT MIDI</Button>
+                <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Send every strike to a MIDI device or another app.</span>
               </div>
             ) : (
-              <select id="m-out" value={midiOut} onChange={e => choosePort(e.target.value)}>
-                <option value="">NONE</option>
-                {!midi.port && midi.wanted && <option value="wanted" disabled>{midi.wanted.toUpperCase()}   DISCONNECTED</option>}
-                {midiPorts.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}{p.manufacturer ? "   " + p.manufacturer.toUpperCase() : ""}</option>)}
-              </select>
+              // Radix Select values cannot be empty, so NONE is the "none" sentinel
+              <ParamSelect id="m-out" value={midiOut || "none"} display={portText} onChange={v => choosePort(v === "none" ? "" : v)}>
+                <SelectItem value="none">NONE</SelectItem>
+                {!midi.port && midi.wanted && <SelectItem value="wanted" disabled>{midi.wanted.toUpperCase()}   DISCONNECTED</SelectItem>}
+                {midiPorts.map(p => <SelectItem key={p.id} value={p.id}>{portName(p)}</SelectItem>)}
+              </ParamSelect>
             )}
           </Param>
           {midiReady && (
             <>
               <Param id="m-ch" label="CHANNEL" value={midiCh === 10 ? "10  GM DRUMS" : String(midiCh)}>
-                <select id="m-ch" value={midiCh} onChange={e => setMidiCh(+e.target.value)}>
-                  {CHANNELS.map(c => <option key={c} value={c}>CHANNEL {c}{c === 10 ? "  (GM DRUMS)" : ""}</option>)}
-                </select>
+                <ParamSelect id="m-ch" value={String(midiCh)} display={channelText(midiCh)} onChange={v => setMidiCh(+v)}>
+                  {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
+                </ParamSelect>
               </Param>
-              <div className="checks">
-                <label><input type="checkbox" checked={sendProg} onChange={e => setSendProg(e.target.checked)} /> SEND PROGRAM CHANGE</label>
-                <label><input type="checkbox" checked={sendCC} onChange={e => setSendCC(e.target.checked)} /> SEND FILTER AS CC74 / CC71</label>
-                <label><input type="checkbox" checked={localSound} onChange={e => setLocalSound(e.target.checked)} /> PLAY SOUND IN BROWSER TOO</label>
+              <div className="grid gap-1.5 text-[13px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
+                <label><Checkbox checked={sendProg} onCheckedChange={v => setSendProg(v === true)} /> SEND PROGRAM CHANGE</label>
+                <label><Checkbox checked={sendCC} onCheckedChange={v => setSendCC(v === true)} /> SEND FILTER AS CC74 / CC71</label>
+                <label><Checkbox checked={localSound} onCheckedChange={v => setLocalSound(v === true)} /> PLAY SOUND IN BROWSER TOO</label>
               </div>
-              <div className="sfrow">
-                <button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</button>
-                <button onClick={() => M.allNotesOff()}>PANIC</button>
-                <span className="note">Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
+              <div className={ROW}>
+                <Button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</Button>
+                <Button onClick={() => M.allNotesOff()}>PANIC</Button>
+                <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
               </div>
             </>
           )}
-          {midiMsg && <p className="note">{midiMsg}</p>}
-          {midi.error && <p className="note">{midi.error}</p>}
-          {midiReady && !midiPorts.length && <p className="note">No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
+          {midiMsg && <p className={NOTE}>{midiMsg}</p>}
+          {midi.error && <p className={NOTE}>{midi.error}</p>}
+          {midiReady && !midiPorts.length && <p className={NOTE}>No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
         </div>
-        <hr />
-        <div className="transport">
-          <button aria-pressed={sound} onClick={onSound}>{sound ? "SOUND ON" : "SOUND OFF"}</button>
-          <button aria-pressed={!!recInfo} onClick={onRec}>{recInfo ? "STOP" : "REC"}</button>
-          <button onClick={onRender}>RENDER 2:00</button>
-          <button disabled={!take || !take.hits.length} onClick={onSave}>SAVE MIDI</button>
+        <hr className="border-foreground" />
+        <div className="flex flex-wrap gap-2">
+          <Button aria-pressed={sound} onClick={onSound}>{sound ? "SOUND ON" : "SOUND OFF"}</Button>
+          <Button aria-pressed={!!recInfo} onClick={onRec}>{recInfo ? "STOP" : "REC"}</Button>
+          <Button onClick={onRender}>RENDER 2:00</Button>
+          <Button disabled={!take || !take.hits.length} onClick={onSave}>SAVE MIDI</Button>
         </div>
-        <p className="status">{audioLine}</p>
-        <p className="status">{midiLine}</p>
-        <p className="status">{takeLine}{saveMsg ? "\n" + saveMsg : ""}</p>
-        <p className="note">
+        <p className={STATUS}>{audioLine}</p>
+        <p className={STATUS}>{midiLine}</p>
+        <p className={STATUS}>{takeLine}{saveMsg ? "\n" + saveMsg : ""}</p>
+        <p className={NOTE}>
           MIDI: format 0, 480 PPQ, 120 BPM, channel {prog.bank === 128 ? 10 : 1}, bank {prog.bank & 127}, program {prog.prog + 1} {prog.name.toUpperCase()}.
           CC74 carries FREQUENCY and CC71 carries RESONANCE. Note length follows DECAY.
         </p>

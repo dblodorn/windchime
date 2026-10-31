@@ -9,7 +9,7 @@ A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc cla
 
 - Next.js 15 App Router, React 19, plain JavaScript (no TypeScript). Keep it JS unless asked.
 - `tone` (Tone.js 15) for the audio graph.
-- No CSS framework. One global stylesheet.
+- Tailwind CSS v4 (via `@tailwindcss/postcss`) and shadcn/ui components on Radix (`radix-ui`), generated in JS. Theme tokens live in `app/globals.css`.
 - No test runner yet (see Testing).
 
 ## Layout
@@ -17,8 +17,12 @@ A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc cla
 ```
 app/layout.jsx       Courier Prime via next/font, metadata, viewport
 app/page.jsx         renders <Chime />
-app/globals.css      all styles
+app/globals.css      Tailwind imports, 1-bit theme tokens, base layer, a few component rules (canvas, .lead, .tubes .hit)
 components/Chime.jsx the whole UI (client component): state, controls, MIDI out panel
+components/ui/       shadcn components (button, select, slider, checkbox), restyled to the 1-bit theme
+components.json      shadcn CLI config (style radix-nova, tsx false, aliases @/components, @/lib/utils)
+lib/utils.js         cn() (re-exported from shadcn's `cn` package)
+postcss.config.mjs   Tailwind PostCSS plugin
 lib/engine.js        browser-only engine (module-level state, no React)
 lib/midiout.js       Web MIDI output (port lifecycle, channel, notes, CC, test note, panic)
 public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
@@ -44,6 +48,15 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 ## Constraints and decisions to keep
 
 - **Visual language**: two colors only (pure black lines, white ground), pixelated canvas scaled by whole multiples, Courier Prime for every label. Parameter rows are `LABEL ....... value` with dotted leaders. No color, no rounded corners, no shadows.
+  - It is enforced through the theme: every shadcn color token in `app/globals.css` is `#000000` or `#ffffff`, `--accent` is black (so highlights invert), `--radius` and every `--radius-*` are 0, the `--shadow-*` namespaces are cleared, and there is no `.dark` block or `dark` variant.
+  - Fonts: next/font exposes Courier Prime as `--font-courier`; `--font-sans`/`--font-mono` point at it. Don't rename it back to `--font-mono`, which would refer to itself in `@theme inline`.
+  - Components use text glyphs (`▾`, `▴`, `■`) instead of icons; there is no icon library. Focus is `focus-visible:outline-1 outline-dashed outline-foreground outline-offset-3` (no rings, which are box shadows).
+  - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. Remove `lucide-react` from `package.json` if the CLI adds it back.
+- **Radix specifics in `Chime.jsx`**:
+  - Select values must be non-empty strings: numbers go through `String(n)`, and MIDI OUT's NONE is the `"none"` sentinel.
+  - `ParamSelect` passes the current choice's text as `SelectValue` children (`display`), because Radix only fills it on the client. `Slider` draws a stand-in thumb until mount for the same reason.
+  - `Param` is a `<div>`; controls are named with `aria-labelledby="${id}-label"` (a `<label>` would open selects on click and include the value text in the name).
+  - Page padding is on `html`, not `body`: Radix's scroll lock rewrites body padding while a select is open.
 - **Audio must start inside a tap** (Safari/iOS). `preloadAudio()` runs on mount so `toggleSound()` can build the graph and call `Tone.start()` + `resume()` synchronously in the click. `unlockAudio()` sets `navigator.audioSession.type = "playback"` and loops a silent `<audio>` so the iOS ring/silent switch doesn't mute it. Don't move audio setup out of the gesture path.
 - **SSR**: `Chime.jsx` is `"use client"` but still prerenders. `lib/engine.js` and `lib/midiout.js` must not touch `window`/`document`/`navigator` at module top level; Tone is imported dynamically. Never read a browser capability during render (for example `disabled={!M.supported()}`): the server renders `false`, and React does not fix mismatched attributes during hydration, so the stale value sticks. Hold it in state that starts `null` and is set in a mount effect (see `midiSupported`).
 - **Web MIDI** asks for permission only from the CONNECT MIDI click, never on load. Settings persist in `localStorage` under `windchime.*`.
@@ -66,7 +79,7 @@ There are no `lint` or `test` scripts. The package manager is pnpm: `pnpm-lock.y
 No automated tests yet. What has worked so far:
 
 - **Engine in Node**: `lib/engine.js` imports cleanly in Node (no DOM at top level). You can `addFont` the `.sf2` from `public/`, `chooseVoice`, `setParams`, `renderTake(60)`, and `buildMidi` without a browser. Smoke test: `node -e 'import("./lib/engine.js").then(m => console.log(m.SCALE_LIST.length))'` (prints 27). Node warns that the module type isn't specified, because `package.json` has no `"type": "module"`. That's harmless. Don't add the field without checking `next build`.
-- **UI in headless Chromium**: Playwright is fine for this. Stub `navigator.requestMIDIAccess` with fake outputs that record `send()` calls, and check the bytes (`0x9n`/`0x8n` on the chosen channel, `0xBn 74/71`, `0xBn 123` on PANIC).
+- **UI in headless Chromium**: Playwright is fine for this. Stub `navigator.requestMIDIAccess` with fake outputs that record `send()` calls, and check the bytes (`0x9n`/`0x8n` on the chosen channel, `0xBn 74/71`, `0xBn 123` on PANIC). Drive controls by role and name (`getByRole("combobox" | "slider" | "checkbox", { name })`); native `selectOption` and input value setters no longer apply. Radix moves select focus on the next tick, so space keystrokes ~50 ms apart. Don't run `next dev` while `next start` serves the same `.next` directory: dev overwrites the production build output.
 - Things only a person can check: real audio output, iOS behavior, real MIDI hardware.
 
 Good first additions would be Vitest unit tests for `parseSF2`/`resolvePreset`, `buildMidi` byte output, `sixOf`, and strike-rate regression for the sim.
