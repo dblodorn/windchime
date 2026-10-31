@@ -14,6 +14,8 @@ A six-tube wind chime simulated in the browser and drawn as 1-bit raster art. Wi
 | SCALE | 27 tunings, including Ryukyu, in-sen, hirajoshi, pelog, Hijaz and the harmonic series |
 | SOUNDFONT | All 128 General MIDI instruments and 8 drum kits from the bundled TimGM6mb font, six synthesized voices, and any `.sf2` file you add |
 
+MIDI OUT sends every strike live to a hardware or virtual MIDI port (Web MIDI: Chrome, Edge or Firefox on a computer). Pick the interface and channel 1–16; program changes and the filter (CC74 / CC71) can go out too, and PANIC sends All Notes Off. Untick PLAY SOUND IN BROWSER TOO to hear only the device.
+
 REC captures the live chime; RENDER 2:00 simulates two minutes instantly. SAVE MIDI writes a format-0 `.mid` with the chosen bank and program, so it renders with the same instrument in any SoundFont player.
 
 ## Run it

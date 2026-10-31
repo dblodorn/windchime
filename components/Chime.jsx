@@ -2,11 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as E from "../lib/engine";
+import * as M from "../lib/midiout";
 
 const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
 const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
+const CHANNELS = Array.from({ length: 16 }, (_, k) => k + 1);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("windchime." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
+};
 
 function Param({ id, label, value, children }) {
   return (
@@ -62,6 +68,19 @@ export default function Chime() {
   const [saveMsg, setSaveMsg] = useState("");
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
 
+  // MIDI out
+  const [midiReady, setMidiReady] = useState(false);
+  const [midiPorts, setMidiPorts] = useState([]);
+  const [midiOut, setMidiOut] = useState("");
+  const [midiCh, setMidiCh] = useState(1);
+  const [sendProg, setSendProg] = useState(true);
+  const [sendCC, setSendCC] = useState(true);
+  const [localSound, setLocalSound] = useState(true);
+  const [midiMsg, setMidiMsg] = useState("");
+  const [midiCount, setMidiCount] = useState(0);
+  const decayRef = useRef(decay);
+  decayRef.current = decay;
+
   const scale = useMemo(() => E.sixOf(E.SCALE_LIST[scaleIdx].deg), [scaleIdx]);
   const cutoff = E.cutoffHz(cutX);
 
@@ -72,8 +91,9 @@ export default function Chime() {
   // canvas + animation loop; fetch the audio library in the background
   useEffect(() => { E.preloadAudio(); return E.attach(canvasRef.current); }, []);
 
-  // flash the tube cell on every strike
-  useEffect(() => E.onHit(i => {
+  // flash the tube cell on every strike, and send it to the MIDI port
+  useEffect(() => E.onHit((i, vel) => {
+    if (M.currentOutput()) { M.note(E.noteOf(i), vel, decayRef.current); setMidiCount(n => n + 1); }
     const el = cellRefs.current[i];
     if (!el) return;
     el.classList.add("hit");
@@ -119,6 +139,49 @@ export default function Chime() {
     })();
     return () => { dead = true; };
   }, []);
+
+  // ---------- MIDI out ----------
+  useEffect(() => {
+    setMidiCh(store.get("midiCh", 1));
+    setSendProg(store.get("sendProg", true));
+    setSendCC(store.get("sendCC", true));
+    if (!M.supported()) setMidiMsg("This browser has no Web MIDI. Use Chrome, Edge or Firefox on a computer.");
+    return M.onChange(() => {
+      const ports = M.listOutputs();
+      setMidiPorts(ports);
+      const cur = M.currentOutput();
+      setMidiOut(cur ? cur.id : "");
+    });
+  }, []);
+  useEffect(() => { M.setChannel(midiCh - 1); store.set("midiCh", midiCh); }, [midiCh]);
+  useEffect(() => { store.set("sendProg", sendProg); store.set("sendCC", sendCC); }, [sendProg, sendCC]);
+  useEffect(() => { E.setMuted(!localSound); }, [localSound]);
+
+  const onMidiConnect = async () => {
+    setMidiMsg("asking the browser for MIDI access");
+    try {
+      const ports = await M.connect();
+      setMidiReady(true);
+      setMidiPorts(ports);
+      const savedName = store.get("midiOutName", "");
+      const pick = ports.find(p => p.name === savedName) || (ports.length === 1 ? ports[0] : null);
+      if (pick) choosePort(pick.id);
+      setMidiMsg(ports.length ? "" : "No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).");
+    } catch (err) {
+      setMidiMsg(err && err.name === "SecurityError" ? "MIDI access was blocked. Allow it in the browser's site settings and try again." : (err.message || "MIDI access failed."));
+    }
+  };
+  const choosePort = id => {
+    M.selectOutput(id);
+    setMidiOut(id);
+    const port = M.currentOutput();
+    if (port) {
+      store.set("midiOutName", port.name);
+      M.setChannel(midiCh - 1);
+      if (sendProg) M.program(prog.bank, prog.prog);
+      if (sendCC) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); }
+    }
+  };
 
   // recording readout
   useEffect(() => {
@@ -187,6 +250,12 @@ export default function Chime() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const groups = useMemo(() => voiceGroups(), [fontsVersion]);
   const prog = useMemo(() => { E.chooseVoice(voice); return E.midiProgram(); }, [voice, fontsVersion]);
+  useEffect(() => { if (sendProg && M.currentOutput()) M.program(prog.bank, prog.prog); }, [prog, sendProg, midiOut, midiCh]);
+  useEffect(() => { if (sendCC && M.currentOutput()) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); } }, [cutX, q, sendCC, midiOut, midiCh]);
+
+  const midiLine = !midiReady ? "MIDI    not connected"
+    : midiOut ? `MIDI    ${(midiPorts.find(p => p.id === midiOut) || {}).name || "port"}   CH ${midiCh}   ${midiCount} NOTES SENT`
+    : "MIDI    choose an interface";
   const voiceTag = voice[0] === "s" ? (E.fonts[+voice.slice(1).split(":")[0]]?.gm ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SF2") : "SYNTH";
 
   const audioLine = !sound ? "AUDIO   off"
@@ -267,6 +336,41 @@ export default function Chime() {
           </Param>
         </div>
         <hr />
+        <div className="params">
+          <Param id="m-out" label="MIDI OUT" value={midiReady ? (midiPorts.length + " PORT" + (midiPorts.length === 1 ? "" : "S")) : "OFF"}>
+            {!midiReady ? (
+              <div className="sfrow">
+                <button onClick={onMidiConnect} disabled={!M.supported()}>CONNECT MIDI</button>
+                <span className="note">Send every strike to a MIDI device or another app.</span>
+              </div>
+            ) : (
+              <select id="m-out" value={midiOut} onChange={e => choosePort(e.target.value)}>
+                <option value="">NONE</option>
+                {midiPorts.map(p => <option key={p.id} value={p.id}>{p.name.toUpperCase()}{p.manufacturer ? "   " + p.manufacturer.toUpperCase() : ""}</option>)}
+              </select>
+            )}
+          </Param>
+          {midiReady && (
+            <>
+              <Param id="m-ch" label="CHANNEL" value={midiCh === 10 ? "10  GM DRUMS" : String(midiCh)}>
+                <select id="m-ch" value={midiCh} onChange={e => setMidiCh(+e.target.value)}>
+                  {CHANNELS.map(c => <option key={c} value={c}>CHANNEL {c}{c === 10 ? "  (GM DRUMS)" : ""}</option>)}
+                </select>
+              </Param>
+              <div className="checks">
+                <label><input type="checkbox" checked={sendProg} onChange={e => setSendProg(e.target.checked)} /> SEND PROGRAM CHANGE</label>
+                <label><input type="checkbox" checked={sendCC} onChange={e => setSendCC(e.target.checked)} /> SEND FILTER AS CC74 / CC71</label>
+                <label><input type="checkbox" checked={localSound} onChange={e => setLocalSound(e.target.checked)} /> PLAY SOUND IN BROWSER TOO</label>
+              </div>
+              <div className="sfrow">
+                <button onClick={() => M.allNotesOff()}>PANIC</button>
+                <span className="note">Note length follows DECAY. PANIC sends All Notes Off on the chosen channel.</span>
+              </div>
+            </>
+          )}
+          {midiMsg && <p className="note">{midiMsg}</p>}
+        </div>
+        <hr />
         <div className="transport">
           <button aria-pressed={sound} onClick={onSound}>{sound ? "SOUND ON" : "SOUND OFF"}</button>
           <button aria-pressed={!!recInfo} onClick={onRec}>{recInfo ? "STOP" : "REC"}</button>
@@ -274,6 +378,7 @@ export default function Chime() {
           <button disabled={!take || !take.hits.length} onClick={onSave}>SAVE MIDI</button>
         </div>
         <p className="status">{audioLine}</p>
+        <p className="status">{midiLine}</p>
         <p className="status">{takeLine}{saveMsg ? "\n" + saveMsg : ""}</p>
         <p className="note">
           MIDI: format 0, 480 PPQ, 120 BPM, channel {prog.bank === 128 ? 10 : 1}, bank {prog.bank & 127}, program {prog.prog + 1} {prog.name.toUpperCase()}.
