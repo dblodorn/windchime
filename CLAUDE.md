@@ -20,7 +20,7 @@ app/page.jsx         renders <Chime />
 app/globals.css      all styles
 components/Chime.jsx the whole UI (client component): state, controls, MIDI out panel
 lib/engine.js        browser-only engine (module-level state, no React)
-lib/midiout.js       Web MIDI output (port, channel, notes, CC, panic)
+lib/midiout.js       Web MIDI output (port lifecycle, channel, notes, CC, test note, panic)
 public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 ```
 
@@ -45,8 +45,9 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 
 - **Visual language**: two colors only (pure black lines, white ground), pixelated canvas scaled by whole multiples, Courier Prime for every label. Parameter rows are `LABEL ....... value` with dotted leaders. No color, no rounded corners, no shadows.
 - **Audio must start inside a tap** (Safari/iOS). `preloadAudio()` runs on mount so `toggleSound()` can build the graph and call `Tone.start()` + `resume()` synchronously in the click. `unlockAudio()` sets `navigator.audioSession.type = "playback"` and loops a silent `<audio>` so the iOS ring/silent switch doesn't mute it. Don't move audio setup out of the gesture path.
-- **SSR**: `Chime.jsx` is `"use client"` but still prerenders. `lib/engine.js` must not touch `window`/`document` at module top level; Tone is imported dynamically.
+- **SSR**: `Chime.jsx` is `"use client"` but still prerenders. `lib/engine.js` and `lib/midiout.js` must not touch `window`/`document`/`navigator` at module top level; Tone is imported dynamically. Never read a browser capability during render (for example `disabled={!M.supported()}`): the server renders `false`, and React does not fix mismatched attributes during hydration, so the stale value sticks. Hold it in state that starts `null` and is set in a mount effect (see `midiSupported`).
 - **Web MIDI** asks for permission only from the CONNECT MIDI click, never on load. Settings persist in `localStorage` under `windchime.*`.
+- **MIDI port lifecycle** lives in `lib/midiout.js`, not React. `wanted` is the chosen (or remembered, `windchime.midiOutName`) port *name*; it survives unplugging. `adopt()` runs after `connect()` and on every `statechange`: it selects the connected port named `wanted`, or on connect the only port there is. `setLive(port)` is the only writer of `output`; it calls `port.open()` and bumps `linkSeq`. On disconnect the note-off timers are dropped without sending. `status()` returns one snapshot for the UI; `Chime.jsx` keys the program-change/CC resend effects on `status().linkSeq`, so a port that becomes live (chosen, auto-picked, replugged with the same id) gets the setup exactly once. A failed `requestMIDIAccess` is not cached, so CONNECT MIDI can be retried.
 - **Strict mode** is on: effects run twice in dev. Engine listeners return unsubscribe functions; keep it that way.
 
 ## Commands
