@@ -61,7 +61,7 @@
 - [x] 6.3 Record First Load JS after the change and compare it with 1.1. Verify: the growth is noted, and if it exceeds about +40 kB, stop and review before continuing.
   - Result: 115 kB → 165 kB (+50 kB, mostly Radix Select: about +43 kB alone over an empty page). Reviewed with the user, who accepted it (2026-10-31).
 - [x] 6.4 Update `CLAUDE.md`: Stack (Tailwind v4 + shadcn/ui, JS), Layout (`components/ui/`, `lib/utils.js`, `components.json`, `postcss.config.mjs`), the visual-language rule extended to shadcn tokens and components (black/white tokens, radius/shadow zeroed, `--font-courier`, text glyphs instead of icons, `"none"` select sentinel), and how to add a component (`pnpm dlx shadcn@4.23.0 add …` then restyle). Verify: every file and name mentioned exists.
-- [ ] 6.5 Commit (including `pnpm-lock.yaml`) and push the branch, then check the Vercel preview on a phone. Check:
+- [x] 6.5 Commit (including `pnpm-lock.yaml`) and push the branch, then check the Vercel preview on a phone. Check:
   - iOS Safari: SOUND starts audio, select lists scroll and fit, slider drag doesn't scroll the page;
   - desktop Chrome: MIDI connect and TEST NOTE.
 
