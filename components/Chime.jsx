@@ -5,6 +5,7 @@ import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
@@ -51,6 +52,19 @@ function ParamSelect({ id, value, display, onChange, children }) {
       <SelectTrigger id={id} aria-labelledby={`${id}-label`}><SelectValue>{display}</SelectValue></SelectTrigger>
       <SelectContent>{children}</SelectContent>
     </Select>
+  );
+}
+
+// MIDI Manufacturers Association "MIDI" wordmark, cropped to its ink.
+// Source: https://commons.wikimedia.org/wiki/File:MIDI_LOGO.svg (PD-textlogo; MIDI is a trademark of the MMA)
+function MidiLogo(props) {
+  return (
+    <svg viewBox="137 96 712 266" fill="currentColor" shapeRendering="crispEdges" aria-hidden="true" focusable="false" {...props}>
+      <path d="M137,96h233c19.6,0,31,16.9,31,37v229h-65V163h-38v199h-59V163h-37v199h-65V96z" />
+      <rect x="433" y="96" width="65" height="266" />
+      <path d="M529,96h193c19.6,0,31,16.9,31,37v196c0,24.9-10.4,33-33,33H529V193h66v104h93V156H529V96z" />
+      <rect x="783" y="96" width="66" height="266" />
+    </svg>
   );
 }
 
@@ -106,6 +120,7 @@ export default function Chime() {
   const [localSound, setLocalSound] = useState(true);
   const [midiMsg, setMidiMsg] = useState("");
   const [midiCount, setMidiCount] = useState(0);
+  const [midiOpen, setMidiOpen] = useState(false);
   const decayRef = useRef(decay);
   decayRef.current = decay;
 
@@ -276,6 +291,7 @@ export default function Chime() {
   useEffect(() => { if (sendCC && M.currentOutput()) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); } }, [cutX, q, sendCC, link, midiCh]);
 
   const midiReady = midi.connected;
+  const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
   const midiLine = !midiReady ? "MIDI    not connected"
     : midi.port ? `MIDI    ${midi.port.name.toUpperCase()}   ${midi.port.state === "connected" ? "CONNECTED" : "DISCONNECTED"} · ${(midi.port.connection || "closed").toUpperCase()}   CH ${midiCh}   ${midiCount} NOTES SENT`
@@ -367,46 +383,6 @@ export default function Chime() {
           </Param>
         </div>
         <hr className="border-foreground" />
-        <div className="grid gap-3.5">
-          <Param id="m-out" label="MIDI OUT" value={midiReady ? (midiPorts.length + " PORT" + (midiPorts.length === 1 ? "" : "S")) : "OFF"}>
-            {!midiReady ? (
-              <div className={ROW}>
-                <Button onClick={onMidiConnect} disabled={midiSupported === false}>CONNECT MIDI</Button>
-                <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Send every strike to a MIDI device or another app.</span>
-              </div>
-            ) : (
-              // Radix Select values cannot be empty, so NONE is the "none" sentinel
-              <ParamSelect id="m-out" value={midiOut || "none"} display={portText} onChange={v => choosePort(v === "none" ? "" : v)}>
-                <SelectItem value="none">NONE</SelectItem>
-                {!midi.port && midi.wanted && <SelectItem value="wanted" disabled>{midi.wanted.toUpperCase()}   DISCONNECTED</SelectItem>}
-                {midiPorts.map(p => <SelectItem key={p.id} value={p.id}>{portName(p)}</SelectItem>)}
-              </ParamSelect>
-            )}
-          </Param>
-          {midiReady && (
-            <>
-              <Param id="m-ch" label="CHANNEL" value={midiCh === 10 ? "10  GM DRUMS" : String(midiCh)}>
-                <ParamSelect id="m-ch" value={String(midiCh)} display={channelText(midiCh)} onChange={v => setMidiCh(+v)}>
-                  {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
-                </ParamSelect>
-              </Param>
-              <div className="grid gap-1.5 text-[13px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
-                <label><Checkbox checked={sendProg} onCheckedChange={v => setSendProg(v === true)} /> SEND PROGRAM CHANGE</label>
-                <label><Checkbox checked={sendCC} onCheckedChange={v => setSendCC(v === true)} /> SEND FILTER AS CC74 / CC71</label>
-                <label><Checkbox checked={localSound} onCheckedChange={v => setLocalSound(v === true)} /> PLAY SOUND IN BROWSER TOO</label>
-              </div>
-              <div className={ROW}>
-                <Button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</Button>
-                <Button onClick={() => M.allNotesOff()}>PANIC</Button>
-                <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
-              </div>
-            </>
-          )}
-          {midiMsg && <p className={NOTE}>{midiMsg}</p>}
-          {midi.error && <p className={NOTE}>{midi.error}</p>}
-          {midiReady && !midiPorts.length && <p className={NOTE}>No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
-        </div>
-        <hr className="border-foreground" />
         <div className="flex flex-wrap gap-2">
           <Button aria-pressed={sound} onClick={onSound}>{sound ? "SOUND ON" : "SOUND OFF"}</Button>
           <Button aria-pressed={!!recInfo} onClick={onRec}>{recInfo ? "STOP" : "REC"}</Button>
@@ -421,6 +397,66 @@ export default function Chime() {
           CC74 carries FREQUENCY and CC71 carries RESONANCE. Note length follows DECAY.
         </p>
       </section>
+      {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
+      <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
+        <DialogTrigger asChild>
+          <Button
+            aria-label="MIDI"
+            data-live={midiLive || undefined}
+            className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 px-2.5 data-[live]:bg-foreground data-[live]:text-background"
+          >
+            <MidiLogo className="h-[18px] w-12" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-baseline gap-2">
+              <DialogTitle>MIDI OUT</DialogTitle>
+              <span className="lead" />
+              <DialogClose asChild><Button>CLOSE</Button></DialogClose>
+            </div>
+            <DialogDescription className={NOTE}>Send every strike to a MIDI device or another app.</DialogDescription>
+          </DialogHeader>
+            <div className="grid gap-3.5">
+              <Param id="m-out" label="MIDI OUT" value={midiReady ? (midiPorts.length + " PORT" + (midiPorts.length === 1 ? "" : "S")) : "OFF"}>
+                {!midiReady ? (
+                  <div className={ROW}>
+                    <Button onClick={onMidiConnect} disabled={midiSupported === false}>CONNECT MIDI</Button>
+                  </div>
+                ) : (
+                  // Radix Select values cannot be empty, so NONE is the "none" sentinel
+                  <ParamSelect id="m-out" value={midiOut || "none"} display={portText} onChange={v => choosePort(v === "none" ? "" : v)}>
+                    <SelectItem value="none">NONE</SelectItem>
+                    {!midi.port && midi.wanted && <SelectItem value="wanted" disabled>{midi.wanted.toUpperCase()}   DISCONNECTED</SelectItem>}
+                    {midiPorts.map(p => <SelectItem key={p.id} value={p.id}>{portName(p)}</SelectItem>)}
+                  </ParamSelect>
+                )}
+              </Param>
+              {midiReady && (
+                <>
+                  <Param id="m-ch" label="CHANNEL" value={midiCh === 10 ? "10  GM DRUMS" : String(midiCh)}>
+                    <ParamSelect id="m-ch" value={String(midiCh)} display={channelText(midiCh)} onChange={v => setMidiCh(+v)}>
+                      {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
+                    </ParamSelect>
+                  </Param>
+                  <div className="grid gap-1.5 text-[13px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
+                    <label><Checkbox checked={sendProg} onCheckedChange={v => setSendProg(v === true)} /> SEND PROGRAM CHANGE</label>
+                    <label><Checkbox checked={sendCC} onCheckedChange={v => setSendCC(v === true)} /> SEND FILTER AS CC74 / CC71</label>
+                    <label><Checkbox checked={localSound} onCheckedChange={v => setLocalSound(v === true)} /> PLAY SOUND IN BROWSER TOO</label>
+                  </div>
+                  <div className={ROW}>
+                    <Button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</Button>
+                    <Button onClick={() => M.allNotesOff()}>PANIC</Button>
+                    <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
+                  </div>
+                </>
+              )}
+              {midiMsg && <p className={NOTE}>{midiMsg}</p>}
+              {midi.error && <p className={NOTE}>{midi.error}</p>}
+              {midiReady && !midiPorts.length && <p className={NOTE}>No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
+            </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
