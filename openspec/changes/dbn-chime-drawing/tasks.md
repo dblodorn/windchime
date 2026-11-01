@@ -42,4 +42,4 @@
   Verify: all checks pass against `next start`.
 - [x] 5.2 Run the existing scratch `midi-check.mjs` and `ui-check.mjs` against `next start` and then `next dev`, one server at a time. Verify: 50/50 and 77/77 on both.
 - [x] 5.3 Update `CLAUDE.md`'s `lib/engine.js` sections 1 (Raster: 200×200, `seg`, `outline`, the K/TOP paper transform) and 5 (Drawing: single-line wireframe, no depth sort), plus `strikeAt` and `tubeSegments()`, and the canvas border/content-box note. Verify: every name mentioned exists in the code.
-- [ ] 5.4 Commit and push the branch, then check the Vercel preview on a phone and on desktop: the drawing reads as intended, tapping tubes strikes them, and the fan and wind look right. Verify: the user confirms before merging to `main`.
+- [x] 5.4 Commit and push the branch, then check the Vercel preview on a phone and on desktop: the drawing reads as intended, tapping tubes strikes them, and the wind looks right (the fan was removed in review). Verify: the user confirms before merging to `main`.
