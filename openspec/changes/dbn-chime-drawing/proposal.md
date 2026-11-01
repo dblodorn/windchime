@@ -5,7 +5,7 @@
 The chime drawing has drifted from the rest of the page. It's a 192×232 three-quarter view with filled shapes, doubled outlines, pixel ellipses, dotted highlights and a shimmer of dashes, while the parameter sheet next to it is now strict single-weight lines in black and white. The goal is a simpler drawing in the vocabulary of John Maeda's *Design By Numbers* (MIT Press, 1999/2001):
 - a small square "paper" (DBN's is 100×100 points; ours is 200×200);
 - single-pixel straight lines and rectangles with no fills or shading;
-- form built from repetition (fans and runs of lines);
+- form built from repetition (runs of lines);
 - the output read as a framed figure.
 
 The drawing should keep its three-quarter perspective rather than becoming a flat front view, and sit inside a 1px border like the other bordered elements on the page.
@@ -21,7 +21,7 @@ The drawing should keep its three-quarter perspective rather than becoming a fla
   - the sail as an outlined rectangle that narrows as it turns with the wind, as now.
 - **Overlap:** with no fills, nothing hides anything else. Back tubes, the clapper and the ring cross freely as overlapping lines, like a wireframe.
 - **Motion:** the simulation and its tuning are unchanged; only how its state is drawn changes. Positions come straight from the sim geometry through the same projection as today, scaled to the new paper, so the clapper is drawn where it actually strikes.
-- **Strikes:** while a tube rings, a **fan of repeated lines** radiates from it, DBN style. It fades with the ring envelope and DECAY.
+- **Strikes:** no drawn effect beyond the tube's swing; the tube readout cell still flashes. (A fan of lines from the ringing tube was built, then removed at the user's request.)
 - **Wind:** sparse short horizontal dashes whose number follows WIND, as now, at the new scale.
 - **Removed:** fills, doubled outlines, the solid disc and sail fills, dotted highlights and the dash shimmer.
 - **Tapping:** a tube is struck by tapping near its line within its height, with a hit area wide enough for a finger even though the line is one raster pixel wide.
@@ -35,7 +35,6 @@ The drawing should keep its three-quarter perspective rather than becoming a fla
   - which elements are drawn and in what visual vocabulary;
   - the three-quarter perspective and how depth reads;
   - how the clapper, tubes and wind are shown moving;
-  - how a ringing tube is shown;
   - striking a tube by tapping.
 
 ### Modified Capabilities

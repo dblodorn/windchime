@@ -64,16 +64,10 @@ In the old projected space, then transformed:
 - **Tubes:** for each tube, the string `seg(attach, top)` and an outlined body: two side lines offset ±`RT` (the sim's tube radius, so about 6 paper px wide) from the centerline, plus straight top and bottom caps. The `top`/`bottom` formulas are the same as `drawTube` now (`dx·0.35` at the top, `dx·1.4` at the bottom, depth `·Z`). The fill, end-cap ellipse, inner dashed highlight and shimmer dashes are removed. The user first got single-stroke tubes, then said they don't need to be single strokes (2026-10-31); outlined bodies give them weight while staying in the single-pixel-line vocabulary.
 - **Clapper:** its string `seg(CX, RING_Y, sx, sy − ry)` and `outline(sx, sy, RS, RS·Z·0.6, 16)`. The thickness rim and fills are removed.
 - **Sail:** its string and the four sides of the rectangle, with the same width formula `hw = 2 + 11·|cos(windAngle)|` and height 36. The fill and inner dashed line are removed.
-- **Order:** there are no fills, so depth sorting is no longer needed for correctness. It's dropped, and elements draw in a fixed order: wind, hook, ring, strings, tubes, clapper, sail, fans. The spec's wireframe overlap follows from this.
+- **Order:** there are no fills, so depth sorting is no longer needed for correctness. It's dropped, and elements draw in a fixed order: wind, hook, ring, strings, tubes, clapper, sail. The spec's wireframe overlap follows from this.
 
-### 4. Strike fan
-Each tube already carries `env`, set on a strike and decayed by `exp(−6.91·dt/DECAY)` in `step()`. The fan is drawn from that value and adds no sim state:
-- **Origin:** the tube's lower end, `bottom`.
-- **Direction:** away from the figure's center axis (`sign(bottom.x − CX)`, or straight down for a tube on the axis), tilted downward. It points outward so fans rarely cross other tubes.
-- **Lines:** `n = 3 + round(env·6)` lines, evenly spread over an arc of 80° centered on that direction, each `4 + env·26` old-projection px long (about 4–27 paper px).
-- **Shown while `env > 0.01`.** With a tap (velocity 96, so env ≈ 0.76) and DECAY 1.0 s, the fan disappears after about 0.63 s. That meets "smaller at 0.5 s, gone by 1.5 s".
-
-This is the cover's radiating-line figure in miniature. The exact arc, counts and lengths are tuned against screenshots in the tasks; the spec fixes only the behavior.
+### 4. No strike effect in the drawing
+A strike shows only as the tube's swing, plus the readout cell flash under the canvas. A fan of 3–9 lines radiating from the ringing tube's lower end, sized by `tb.env`, was built and verified, then removed at the user's request (2026-10-31): it read as a firework rather than as part of the figure.
 
 ### 5. Wind dashes
 The `streaks` array keeps its drift logic in `tick()`, now in old-projection space so it shares the transform. Each streak becomes one solid `seg` of length `len`, instead of every-other-pixel dots. The count is still `round(WIND·30)`.
@@ -99,7 +93,7 @@ A small exported helper, `tubeSegments()`, returns each tube's paper-space top a
 - **Playwright** (new scratch `drawing-check.mjs`):
   - read the canvas pixels for the two-color check and the "no 3×3 black block at rest" check;
   - tap tube centers from `tubeSegments()` and listen via the MIDI stub;
-  - check fan timing, wind dash counts, sizes and the border, and that the readout width matches.
+  - check wind dash counts, sizes and the border, and that the readout width matches.
 - **Existing suites:** the MIDI and UI suites run unchanged, since the drawing has no effect on them.
 
 ## Risks / Trade-offs
@@ -108,7 +102,6 @@ A small exported helper, `tubeSegments()`, returns each tube's paper-space top a
 - **[At 343 px, a 200 px raster scaled 1.7× draws uneven 1–2 px lines]** → This is the same compromise the canvas already makes below ×2 today, and the spec allows it. Phones in landscape and tablets get ×2.
 - **[A wireframe with no occlusion gets busy where back tubes cross the clapper and ring]** → That's intended (DBN-like, and in the spec). If it reads as noise in screenshots, the fallback is to drop the hook line, not to reintroduce fills.
 - **[Thin 1px tubes are hard to hit on touch]** → The ±6 raster px hit area is about ±10 CSS px on a phone, and nearest-wins resolves overlaps.
-- **[Fans at adjacent tubes overlap during busy playing]** → They're short and decay quickly. Acceptable, and arguably part of the look.
 
 ## Migration Plan
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the instrument drawing: a 200×200, 1-bit, single-pixel-line picture of the chime in three-quarter perspective, drawn in the vocabulary of John Maeda's *Design By Numbers* and framed by a 1px border. It shows the simulation's motion and strikes, and lets a person strike a tube by tapping it.
+Defines the instrument drawing: a 200×200, 1-bit, single-pixel-line picture of the chime in three-quarter perspective, drawn in the vocabulary of John Maeda's *Design By Numbers* and framed by a 1px border. It shows the simulation's motion, and lets a person strike a tube by tapping it.
 
 ## ADDED Requirements
 
@@ -79,21 +79,6 @@ Positions SHALL come from the simulation's state through the existing three-quar
 #### Scenario: Clapper meets the struck tube
 - **WHEN** a strike on tube k is reported by the simulation
 - **THEN** in that frame the clapper outline is drawn within a few pixels of tube k's line
-
-### Requirement: Ringing tube shows a fan of lines
-While a tube rings, the drawing SHALL show a fan of repeated straight lines radiating from it, in the *Design By Numbers* manner. The fan's extent (the number of lines, their length, or both) SHALL follow the tube's ring envelope: it starts at its largest at the strike and shrinks as the ring decays with DECAY, until it is gone. A tube that is not ringing shows no fan.
-
-#### Scenario: Fan on a strike
-- **WHEN** a tube is struck by a tap
-- **THEN** within the next frame a fan of lines appears at that tube
-
-#### Scenario: Fan fades with DECAY
-- **WHEN** DECAY is 1.0 s and a tube is struck once with no further strikes
-- **THEN** the fan is smaller after 0.5 s than just after the strike, and is gone by 1.5 s
-
-#### Scenario: Quiet tubes
-- **WHEN** WIND is 0 and nothing has been struck for longer than DECAY
-- **THEN** no fan is drawn at any tube
 
 ### Requirement: Wind shown as dashes
 The drawing SHALL show the wind as sparse, short, single-pixel horizontal dashes that drift with the wind. Their number follows WIND: none at 0, and more as WIND rises.

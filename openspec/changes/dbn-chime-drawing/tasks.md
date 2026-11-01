@@ -15,7 +15,8 @@
 ## 3. Drawing (`lib/engine.js`)
 
 - [x] 3.1 Rewrite `draw()`, `drawTube()` and `drawStriker()` per design Decision 3: hook, single ring outline (24 segments), one string and one line per tube with the existing swing formulas, clapper outline (16 segments) with its string, and the sail's four sides with its string. No fills; fixed draw order, depth sort removed. Verify: a production-build screenshot at 1280 px shows all elements in three-quarter view, and the scratch pixel check finds only `#000`/`#fff` and no 3×3 all-black block with WIND 0 at rest.
-- [x] 3.2 Add the strike fan per Decision 4 (origin at the tube's lower end, pointing outward and down, `3 + round(env·6)` lines over 80°, length `4 + env·26`, shown while `env > 0.01`). Then tune the arc, count and length against screenshots. Verify: after a tap, a screenshot shows the fan at that tube; with DECAY 1.0 s it is smaller at 0.5 s and gone by 1.5 s.
+- [x] 3.2 Add the strike fan per Decision 4 and tune it against screenshots. Verify: after a tap, a screenshot shows the fan; with DECAY 1.0 s it is smaller at 0.5 s and gone by 1.5 s.
+  - Result: built and verified, then removed at the user's request (2026-10-31). Decision 4 and the spec were updated, and the fan checks were dropped from `drawing-check.mjs`.
 - [x] 3.3 Change the wind streaks to solid single-pixel dashes through `seg`, keeping their drift and the `round(WIND·30)` count. Verify: WIND 0 shows no dashes, and WIND 0.8 shows more than WIND 0.2 (counted from canvas pixels outside the figure's bounding box).
 - [x] 3.4 Rewrite `strikeAt(x, y)` for paper coordinates per Decision 6 (±6 px around the slanted tube line within its y-span ±6, nearest wins, same push and `liveHit(i, 96)`), and export `tubeSegments()`. Verify: the scratch test taps each tube's midpoint and sees exactly that tube struck; a tap 5 px to the side still strikes it; a tap in the top-left corner strikes nothing.
 - [x] 3.5 Run `sim-same.mjs` against the edited engine. Verify: the hit lists are identical to `main`'s.
@@ -34,12 +35,11 @@
   - the sixth tube about 1/√2 the length of the first on the default (Ryukyu) scale;
   - the figure fits at WIND 1.0;
   - the clapper is within a few px of the struck tube when the sim reports a strike;
-  - fan appears on a tap, fades and is gone; no fan when quiet;
   - wind dash counts;
   - tap each tube, near-miss, empty space;
   - readout width match.
 
   Verify: all checks pass against `next start`.
 - [x] 5.2 Run the existing scratch `midi-check.mjs` and `ui-check.mjs` against `next start` and then `next dev`, one server at a time. Verify: 50/50 and 77/77 on both.
-- [x] 5.3 Update `CLAUDE.md`'s `lib/engine.js` sections 1 (Raster: 200×200, `seg`, `outline`, the K/TOP paper transform) and 5 (Drawing: single-line wireframe, no depth sort, the strike fan from `env`), plus `strikeAt` and `tubeSegments()`, and the canvas border/content-box note. Verify: every name mentioned exists in the code.
+- [x] 5.3 Update `CLAUDE.md`'s `lib/engine.js` sections 1 (Raster: 200×200, `seg`, `outline`, the K/TOP paper transform) and 5 (Drawing: single-line wireframe, no depth sort), plus `strikeAt` and `tubeSegments()`, and the canvas border/content-box note. Verify: every name mentioned exists in the code.
 - [ ] 5.4 Commit and push the branch, then check the Vercel preview on a phone and on desktop: the drawing reads as intended, tapping tubes strikes them, and the fan and wind look right. Verify: the user confirms before merging to `main`.
