@@ -129,10 +129,10 @@ export default function Chime() {
     el._t = setTimeout(() => el.classList.remove("hit"), 140);
   }), []);
 
-  // size the canvas to whole-pixel multiples where there is room
+  // size the canvas to whole-pixel multiples where there is room (its 1px border sits outside this)
   useEffect(() => {
     const fit = () => {
-      const avail = stageRef.current ? stageRef.current.clientWidth : E.W;
+      const avail = (stageRef.current ? stageRef.current.clientWidth : E.W) - 2;
       const maxByH = Math.max(320, window.innerHeight - 110) * E.W / E.H;
       const w = Math.min(avail, maxByH, E.W * 3);
       setCanvasPx(w >= E.W * 2 ? Math.floor(w / E.W) * E.W : w);
@@ -261,9 +261,10 @@ export default function Chime() {
     e.target.value = "";
   };
 
+  // map through the content box, inside the canvas's 1px border
   const onCanvasDown = e => {
-    const r = canvasRef.current.getBoundingClientRect();
-    E.strikeAt((e.clientX - r.left) / r.width * E.W, (e.clientY - r.top) / r.height * E.H);
+    const c = canvasRef.current, r = c.getBoundingClientRect();
+    E.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H);
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,11 +299,12 @@ export default function Chime() {
           ref={canvasRef}
           width={E.W}
           height={E.H}
+          className="box-content border border-foreground"
           style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
           onPointerDown={onCanvasDown}
           aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
         />
-        <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx }}>
+        <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
           {scale.map((s, i) => {
             const m = root + s;
             return (
