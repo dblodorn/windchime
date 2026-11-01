@@ -18,8 +18,8 @@ A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc cla
 app/layout.jsx       Courier Prime via next/font, metadata, viewport
 app/page.jsx         renders <Chime />
 app/globals.css      Tailwind imports, 1-bit theme tokens, base layer, a few component rules (canvas, .lead, .tubes .hit)
-components/Chime.jsx the whole UI (client component): state, controls, MIDI out panel
-components/ui/       shadcn components (button, select, slider, checkbox), restyled to the 1-bit theme
+components/Chime.jsx the whole UI (client component): state, controls, MIDI OUT dialog and its fixed MIDI button
+components/ui/       shadcn components (button, select, slider, checkbox, dialog), restyled to the 1-bit theme
 components.json      shadcn CLI config (style radix-nova, tsx false, aliases @/components, @/lib/utils)
 lib/utils.js         cn() (re-exported from shadcn's `cn` package)
 postcss.config.mjs   Tailwind PostCSS plugin
@@ -55,12 +55,13 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
   - It is enforced through the theme: every shadcn color token in `app/globals.css` is `#000000` or `#ffffff`, `--accent` is black (so highlights invert), `--radius` and every `--radius-*` are 0, the `--shadow-*` namespaces are cleared, and there is no `.dark` block or `dark` variant.
   - Fonts: next/font exposes Courier Prime as `--font-courier`; `--font-sans`/`--font-mono` point at it. Don't rename it back to `--font-mono`, which would refer to itself in `@theme inline`.
   - Components use text glyphs (`▾`, `▴`, `■`) instead of icons; there is no icon library. Focus is `focus-visible:outline-1 outline-dashed outline-foreground outline-offset-3` (no rings, which are box shadows).
-  - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. Remove `lucide-react` from `package.json` if the CLI adds it back.
+  - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. Remove `lucide-react` from `package.json` if the CLI adds it back. The CLI offers to overwrite `button.jsx`: answer no. Overlays get no tint: `dialog.jsx`'s overlay is transparent (it still catches outside clicks), since a grey backdrop would break the two-color rule.
 - **Radix specifics in `Chime.jsx`**:
   - Select values must be non-empty strings: numbers go through `String(n)`, and MIDI OUT's NONE is the `"none"` sentinel.
   - `ParamSelect` passes the current choice's text as `SelectValue` children (`display`), because Radix only fills it on the client. `Slider` draws a stand-in thumb until mount for the same reason.
   - `Param` is a `<div>`; controls are named with `aria-labelledby="${id}-label"` (a `<label>` would open selects on click and include the value text in the name).
-  - Page padding is on `html`, not `body`: Radix's scroll lock rewrites body padding while a select is open.
+  - Page padding is on `html`, not `body`: Radix's scroll lock rewrites body padding while a select or the dialog is open. The bottom padding (76 px plus the safe area) leaves room for the fixed MIDI button.
+  - **MIDI OUT dialog:** the MIDI OUT controls live in a controlled `Dialog` (`midiOpen`) opened by the MIDI button, which is fixed to the lower right with `aria-label="MIDI"` and shows `MidiLogo`, the inline MMA wordmark from Wikimedia Commons with `crispEdges` at a whole-pixel size. All MIDI state and effects stay in `Chime`'s body, so MIDI keeps running while the dialog is closed (Radix unmounts closed content). The button gets `data-live`, which inverts it, while a connected port is selected. While the dialog is open, the page behind it is hidden from the accessibility tree, so tests that find the button by role must close the dialog first.
 - **Audio must start inside a tap** (Safari/iOS). `preloadAudio()` runs on mount so `toggleSound()` can build the graph and call `Tone.start()` + `resume()` synchronously in the click. `unlockAudio()` sets `navigator.audioSession.type = "playback"` and loops a silent `<audio>` so the iOS ring/silent switch doesn't mute it. Don't move audio setup out of the gesture path.
 - **SSR**: `Chime.jsx` is `"use client"` but still prerenders. `lib/engine.js` and `lib/midiout.js` must not touch `window`/`document`/`navigator` at module top level; Tone is imported dynamically. Never read a browser capability during render (for example `disabled={!M.supported()}`): the server renders `false`, and React does not fix mismatched attributes during hydration, so the stale value sticks. Hold it in state that starts `null` and is set in a mount effect (see `midiSupported`).
 - **Web MIDI** asks for permission only from the CONNECT MIDI click, never on load. Settings persist in `localStorage` under `windchime.*`.

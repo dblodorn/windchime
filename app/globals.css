@@ -104,7 +104,8 @@
   html {
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
-    padding-block: max(20px, env(safe-area-inset-top, 0px)) max(40px, env(safe-area-inset-bottom, 0px));
+    /* bottom: room for the fixed MIDI button (44px tall, 16px from the edge) plus 16px of air */
+    padding-block: max(20px, env(safe-area-inset-top, 0px)) calc(76px + env(safe-area-inset-bottom, 0px));
   }
   body {
     font-size: 15px;
