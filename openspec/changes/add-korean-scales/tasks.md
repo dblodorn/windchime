@@ -39,5 +39,6 @@
 ## 4. Docs and release
 
 - [x] 4.1 Update `CLAUDE.md`: "27 scales" becomes "32 scales" in engine section 2, and the Node smoke test "(prints 27)" becomes "(prints 32)". Verify: `grep -n "27" CLAUDE.md` shows no scale count, and `grep -n "32" CLAUDE.md` shows both lines.
-- [ ] 4.2 Commit, push the branch and open a PR. The description lists the five scales and their sources (from proposal.md), the check results, and the 375 px menu screenshot. Verify: the PR URL and the Vercel preview URL are noted in this task's completion message, and the preview deploy succeeded.
+- [x] 4.2 Commit, push the branch and open a PR. The description lists the five scales and their sources (from proposal.md), the check results, and the 375 px menu screenshot. Verify: the PR URL and the Vercel preview URL are noted in this task's completion message, and the preview deploy succeeded.
+  - Result: PR https://github.com/dblodorn/windchime/pull/5. Preview https://windchime-git-add-korean-scales-db13.vercel.app (Vercel deploy succeeded; it's behind the Vercel login). The screenshot stayed in the session scratchpad, because `gh` can't attach images; the PR describes it.
 - [ ] 4.3 Check the Vercel preview on a phone and on desktop: the KOREA group appears second, each Korean scale sounds and retunes the tubes, and the menu scrolls cleanly at phone width. Verify: the user confirms before merging to `main`.
