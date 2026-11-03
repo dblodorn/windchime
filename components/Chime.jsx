@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EighthNote, Settings2, Volume2, VolumeX } from "lucide-react";
+import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
 import { Button } from "@/components/ui/button";
@@ -85,6 +86,11 @@ function voiceGroups() {
 export default function Chime() {
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
+  const mainRef = useRef(null);
+  // the unit (drawing, its buttons, the notes drawer) drags from empty paper and stays inside the viewport
+  const dragControls = useDragControls();
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
   const cellRefs = useRef([]);
 
   const [wind, setWind] = useState(0.45);
@@ -147,6 +153,18 @@ export default function Chime() {
     window.addEventListener("resize", fit);
     return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
   }, []);
+
+  // put the unit back where it was last dragged, clamped to the viewport the page has now.
+  // Re-run as the canvas settles to its size, until the user drags (from then on motion keeps it inside)
+  const dragged = useRef(false);
+  useEffect(() => {
+    const pos = store.get("pos", null);
+    if (!pos || dragged.current || !stageRef.current || !mainRef.current) return;
+    const m = mainRef.current.getBoundingClientRect(), r = stageRef.current.getBoundingClientRect();
+    const left = r.left - x.get(), top = r.top - y.get(), w = r.width, h = r.height;
+    x.set(Math.min(Math.max(pos.x, m.left - left), m.right - left - w));
+    y.set(Math.min(Math.max(pos.y, m.top - top), m.bottom - top - h));
+  }, [x, y, canvasPx]);
 
   // bundled General MIDI soundfont
   useEffect(() => {
@@ -214,7 +232,8 @@ export default function Chime() {
   // map through the content box, inside the canvas's 1px border
   const onCanvasDown = e => {
     const c = canvasRef.current, r = c.getBoundingClientRect();
-    E.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H);
+    // a press near a tube strikes it; anywhere else on the paper starts dragging the unit
+    if (E.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H) < 0) dragControls.start(e);
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,14 +253,26 @@ export default function Chime() {
   const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
 
   return (
-    <main className="mx-auto grid w-full max-w-[402px] justify-items-center">
-      <section className="grid w-full min-w-0 justify-items-start" ref={stageRef}>
+    <main ref={mainRef} className="fixed inset-0 grid place-items-center overflow-hidden pt-[max(16px,env(safe-area-inset-top,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))]">
+      <motion.section
+        ref={stageRef}
+        drag
+        dragListener={false}
+        dragControls={dragControls}
+        dragConstraints={mainRef}
+        dragElastic={0}
+        dragMomentum={false}
+        onDragStart={() => { dragged.current = true; }}
+        onDragEnd={() => store.set("pos", { x: Math.round(x.get()), y: Math.round(y.get()) })}
+        style={{ x, y }}
+        className="grid w-[min(402px,100%)] min-w-0 justify-items-start"
+      >
         <div className="relative">
           <canvas
             ref={canvasRef}
             width={E.W}
             height={E.H}
-            className="box-content border border-foreground"
+            className="box-content touch-none border border-foreground"
             style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
             onPointerDown={onCanvasDown}
             aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
@@ -320,7 +351,7 @@ export default function Chime() {
             })}
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>

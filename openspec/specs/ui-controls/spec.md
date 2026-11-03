@@ -143,6 +143,25 @@ The six-cell tube readout SHALL be hidden when the page loads. Each cell is a no
 - **WHEN** the user turns NOTES off again
 - **THEN** the readout is hidden
 
+### Requirement: Centered, draggable unit
+The drawing, its three round buttons and the tube notes drawer SHALL form one unit, shown centered in the viewport on first visit. The user SHALL be able to drag the unit by pressing on the drawing away from every tube and moving the pointer or finger; pressing near a tube still strikes it and never starts a drag. The unit MUST stay fully inside the viewport while dragged and when the window is resized. Its last dragged position SHALL be remembered across visits and pulled back inside the viewport if the window is now smaller.
+
+#### Scenario: Centered on first visit
+- **WHEN** the page loads with no remembered position
+- **THEN** the unit is centered horizontally and vertically in the viewport
+
+#### Scenario: Dragging from empty paper
+- **WHEN** the user presses the top-left corner of the drawing and moves 100 px right and 50 px down
+- **THEN** the unit moves 100 px right and 50 px down and no tube is struck
+
+#### Scenario: Kept on screen
+- **WHEN** the user drags the unit far past the viewport's edge
+- **THEN** it stops with its edge inside the viewport
+
+#### Scenario: Remembered
+- **WHEN** the user drags the unit and reloads the page
+- **THEN** the unit appears where it was left
+
 ### Requirement: Accessible names and roles
 Every control SHALL have an accessible name equal to its visible label (for example "WIND", "MIDI OUT", "SEND PROGRAM CHANGE", "TEST NOTE"), and the correct role (button, combobox, slider, checkbox). Sliders SHALL expose their current, minimum and maximum values. The visible labels, button texts and states named by the `midi-output` capability MUST remain the same.
 

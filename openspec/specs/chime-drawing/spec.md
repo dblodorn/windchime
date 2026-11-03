@@ -92,7 +92,7 @@ The drawing SHALL show the wind as sparse, short, single-pixel horizontal dashes
 - **THEN** more wind dashes are drawn
 
 ### Requirement: Strike a tube by tapping
-Tapping or clicking the drawing near a tube's line, within the tube's height, SHALL strike that tube. The strike has the same effect as before this change: velocity 96, the tube swings, sound plays, a MIDI note is sent when a port is selected, and its readout cell flashes. Each tube's hit area MUST extend at least 6 raster pixels to either side of its line, so the target is at least 12 CSS px wide at ×2. When hit areas overlap, the nearest tube wins. Tapping away from every tube strikes nothing.
+Tapping or clicking the drawing near a tube's line, within the tube's height, SHALL strike that tube. The strike has the same effect as before this change: velocity 96, the tube swings, sound plays, a MIDI note is sent when a port is selected, and its readout cell flashes. Each tube's hit area MUST extend at least 6 raster pixels to either side of its line, so the target is at least 12 CSS px wide at ×2. When hit areas overlap, the nearest tube wins. Tapping away from every tube strikes nothing; pressing there starts dragging the unit (see `ui-controls`).
 
 #### Scenario: Tap each tube
 - **WHEN** a person taps on each tube's line in turn, halfway down its length
@@ -107,7 +107,7 @@ Tapping or clicking the drawing near a tube's line, within the tube's height, SH
 - **THEN** no tube is struck
 
 ### Requirement: Tube readout matches the drawing
-The tube readout beneath the drawing SHALL keep its 1px black border and six columns (T1–T6 with note name and frequency). Its width MUST equal the drawing's displayed width at every size, and a struck tube's cell inverts briefly as before.
+The tube readout beneath the drawing SHALL keep its 1px black border and six columns (each a note pad with note name and frequency). Its width MUST equal the drawing's displayed width at every size, and a struck tube's cell inverts briefly as before.
 
 #### Scenario: Widths match
 - **WHEN** the page is shown at 1280 px and at 375 px wide
