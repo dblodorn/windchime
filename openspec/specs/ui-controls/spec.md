@@ -7,12 +7,12 @@ Defines the parameter sheet's 1-bit visual language and how its controls (button
 ## Requirements
 
 ### Requirement: Two-color, monospace, square visual language
-Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have rounded corners or a box shadow. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
+Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the three 30 px circular buttons on the drawing: the SOUND toggle in the top-right corner, which shows a speaker icon (on) or a muted-speaker icon (off), the SETTINGS button in the bottom-right corner, which shows a settings icon, and the NOTES toggle in the bottom-left corner, which shows an eighth-note icon. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
 
 #### Scenario: Computed styles stay within the palette
 - **WHEN** the page is rendered and every control is shown in its resting, hover, pressed, focused, open and disabled states
 - **THEN** every computed `color`, `background-color`, `border-color` and `outline-color` is black or white (or one of them at reduced opacity for disabled)
-- **AND** every computed `border-radius` is `0px` and every `box-shadow` is `none`
+- **AND** every computed `border-radius` is `0px` except on the SOUND, SETTINGS and NOTES buttons, and every `box-shadow` is `none`
 
 #### Scenario: Font
 - **WHEN** any label, value, option or button text is rendered
@@ -34,14 +34,14 @@ Each parameter SHALL be shown as a row with its uppercase label on the left, a d
 - **THEN** the row's value text updates on every change (for example `4.0 S` → `4.1 S`)
 
 ### Requirement: Buttons
-Buttons SHALL have a 1px black border on white, with uppercase monospace text. On hover, and while a toggle button is pressed (SOUND ON, REC/STOP), a button SHALL show inverted colors (white text on black). A disabled button MUST look dimmed, MUST NOT invert on hover and MUST NOT respond to activation. Buttons SHALL activate with a pointer click, a touch tap, Enter or Space.
+Buttons SHALL have a 1px black border on white, with uppercase monospace text. On hover, and while a toggle button is pressed (SOUND), a button SHALL show inverted colors (white text on black). A disabled button MUST look dimmed, MUST NOT invert on hover and MUST NOT respond to activation. Buttons SHALL activate with a pointer click, a touch tap, Enter or Space.
 
 #### Scenario: Toggle pressed state
 - **WHEN** the user turns SOUND on
-- **THEN** the button reads SOUND ON, renders inverted, and exposes a pressed state to assistive technology
+- **THEN** the round SOUND button over the drawing shows the speaker-on icon, renders inverted, and exposes a pressed state to assistive technology
 
 #### Scenario: Disabled button
-- **WHEN** SAVE MIDI is disabled because there is no take
+- **WHEN** TEST NOTE is disabled because no MIDI port is selected
 - **THEN** it renders dimmed, does not invert on hover, and does nothing on click or key press
 
 #### Scenario: Audio starts inside the tap
@@ -109,12 +109,65 @@ Every interactive control SHALL show a visible focus indicator when focused by k
 - **WHEN** the user tabs through the parameter sheet
 - **THEN** each button, select, slider and checkbox in turn shows a 1px dashed black outline
 
+### Requirement: Parameter popover
+The parameter rows (WIND, DECAY, FREQUENCY, RESONANCE, ROOT, SCALE, SOUNDFONT) SHALL live in a popover opened by the SETTINGS button, a 30 px circular button in the bottom-right corner of the drawing that shows a settings icon. The popover SHALL be a square white panel with a 1px black border, anchored to the button and kept within the viewport, and it SHALL scroll when it is taller than the space available. The page behind it MUST stay live: the chime keeps animating and sounding. The SETTINGS button SHALL render inverted and report itself expanded while the popover is open. Escape, a tap outside the popover or activating SETTINGS again SHALL close it. Closing MUST NOT change any parameter.
+
+#### Scenario: Opening the popover
+- **WHEN** the user activates SETTINGS
+- **THEN** a panel opens holding the seven parameter rows, and the SETTINGS button renders inverted with an expanded state
+
+#### Scenario: Choosing inside the popover
+- **WHEN** the user picks a SCALE option from the select inside the popover
+- **THEN** the scale changes and the popover stays open
+
+#### Scenario: Closing keeps values
+- **WHEN** the user sets WIND to 0.20, presses Escape, and opens SETTINGS again
+- **THEN** focus returned to SETTINGS on close, and the WIND row reads 0.20
+
+### Requirement: Tube notes drawer
+The six-cell tube readout SHALL be hidden when the page loads. Each cell is a note pad showing its tube's note name and frequency, with no tube-number label, and SHALL strike that tube (sound, MIDI and the cell's flash, exactly as tapping the tube in the drawing) when pressed with a pointer or activated with Enter or Space. A pad SHALL invert on hover. The NOTES toggle, a 30 px circular button in the bottom-left corner of the drawing that shows an eighth-note icon, SHALL show and hide it. When shown, the readout SHALL appear at once, without animation, flush against the drawing's bottom border, the same width as the drawing, sharing that border. While hidden it MUST NOT be reachable by keyboard or exposed to assistive technology.
+
+#### Scenario: Hidden on load
+- **WHEN** the page loads
+- **THEN** the tube readout is not visible, and NOTES is not pressed
+
+#### Scenario: Showing the readout
+- **WHEN** the user turns NOTES on
+- **THEN** NOTES renders inverted and pressed, and the readout appears directly under the drawing, its top edge on the drawing's bottom border
+
+#### Scenario: Striking from a pad
+- **WHEN** the readout is shown and the user presses the third pad
+- **THEN** the third tube is struck once: its note-on goes to the selected MIDI port and the pad flashes inverted
+
+#### Scenario: Hiding the readout
+- **WHEN** the user turns NOTES off again
+- **THEN** the readout is hidden
+
+### Requirement: Centered, draggable unit
+The drawing, its three round buttons and the tube notes drawer SHALL form one unit, shown centered in the viewport on first visit. The user SHALL be able to drag the unit by pressing on the drawing away from every tube and moving the pointer or finger; pressing near a tube still strikes it and never starts a drag. The unit MUST stay fully inside the viewport while dragged and when the window is resized. Its last dragged position SHALL be remembered across visits and pulled back inside the viewport if the window is now smaller.
+
+#### Scenario: Centered on first visit
+- **WHEN** the page loads with no remembered position
+- **THEN** the unit is centered horizontally and vertically in the viewport
+
+#### Scenario: Dragging from empty paper
+- **WHEN** the user presses the top-left corner of the drawing and moves 100 px right and 50 px down
+- **THEN** the unit moves 100 px right and 50 px down and no tube is struck
+
+#### Scenario: Kept on screen
+- **WHEN** the user drags the unit far past the viewport's edge
+- **THEN** it stops with its edge inside the viewport
+
+#### Scenario: Remembered
+- **WHEN** the user drags the unit and reloads the page
+- **THEN** the unit appears where it was left
+
 ### Requirement: Accessible names and roles
 Every control SHALL have an accessible name equal to its visible label (for example "WIND", "MIDI OUT", "SEND PROGRAM CHANGE", "TEST NOTE"), and the correct role (button, combobox, slider, checkbox). Sliders SHALL expose their current, minimum and maximum values. The visible labels, button texts and states named by the `midi-output` capability MUST remain the same.
 
 #### Scenario: Roles and names
 - **WHEN** the page's accessibility tree is inspected
-- **THEN** there is a slider named WIND with min 0, max 1 and value 0.45, comboboxes named ROOT, SCALE, SOUNDFONT, MIDI OUT (after connect) and CHANNEL, and checkboxes named for each MIDI option
+- **THEN** there are buttons named SOUND, SETTINGS and NOTES, and with the settings popover open there is a slider named WIND with min 0, max 1 and value 0.45, comboboxes named ROOT, SCALE, SOUNDFONT, MIDI OUT (after connect) and CHANNEL, and checkboxes named for each MIDI option
 
 #### Scenario: MIDI controls unchanged
 - **WHEN** the MIDI behavior checks from the `midi-output` capability are run using controls by role and name

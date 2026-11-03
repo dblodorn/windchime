@@ -4,8 +4,8 @@ import "./globals.css";
 const mono = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-courier", display: "swap" });
 
 export const metadata = {
-  title: "Six Tube Chime",
-  description: "A six-tube wind chime simulation in 1-bit raster art. Plays through Tone.js and SoundFont samples and exports MIDI.",
+  title: "Chime",
+  description: "A six-tube wind chime simulation in 1-bit raster art. Plays through Tone.js and SoundFont samples and sends live MIDI.",
 };
 
 export const viewport = {

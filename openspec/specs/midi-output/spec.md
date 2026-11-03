@@ -166,19 +166,19 @@ A PANIC control SHALL end every note the system is sounding on the chosen port. 
 - **AND** no delayed note-offs for those notes are sent afterwards
 
 ### Requirement: Connection status display
-The panel SHALL show the MIDI state in plain text in the existing two-color style. The states are: not connected; connected with no port chosen; a port chosen, with its name, its connection state (connected or disconnected) and whether the port is open; and the channel with a count of notes sent this session.
+The MIDI state SHALL be shown through the controls themselves, in the existing two-color style, with no separate status line on the page. Before CONNECT MIDI is activated, the MIDI OUT row reads OFF and the dialog offers CONNECT MIDI. Once connected, the MIDI OUT select shows the chosen port's name, NONE when no port is chosen, or the remembered port's name followed by DISCONNECTED while it is unplugged. The MIDI button is inverted only while the selected port is connected.
 
-#### Scenario: Port chosen and open
-- **WHEN** a port is selected, connected, and has been opened by sending
-- **THEN** the status shows the port name, that it is connected and open, the channel, and the number of notes sent
+#### Scenario: Port chosen and connected
+- **WHEN** a port is selected and connected
+- **THEN** the MIDI OUT select shows the port name and the MIDI button is inverted
 
 #### Scenario: Port chosen but disconnected
 - **WHEN** the remembered port is disconnected
-- **THEN** the status shows its name and that it is disconnected
+- **THEN** the MIDI OUT select shows its name followed by DISCONNECTED and the MIDI button is not inverted
 
 #### Scenario: Not yet connected
 - **WHEN** the user has not activated CONNECT MIDI
-- **THEN** the status reads that MIDI is not connected
+- **THEN** the MIDI OUT row reads OFF and the dialog shows CONNECT MIDI
 
 ### Requirement: Browser sound alongside MIDI
 The user SHALL be able to turn the browser's own sound on or off while MIDI output is active, without stopping the simulation or MIDI output.
