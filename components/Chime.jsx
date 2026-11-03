@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EighthNote, Settings2, Volume2, VolumeX } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CopyPlus, EighthNote, Settings2, Volume2, VolumeX } from "lucide-react";
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
@@ -15,10 +15,13 @@ import { Slider } from "@/components/ui/slider";
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
 const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
+const SCALE_BY_NAME = Object.fromEntries(E.SCALE_LIST.map(s => [s.name, s]));
 const CHANNELS = Array.from({ length: 16 }, (_, k) => k + 1);
+const MAX_UNITS = 16;
 const store = {
   get(k, d) { try { const v = localStorage.getItem("windchime." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
+  remove(k) { try { localStorage.removeItem("windchime." + k); } catch (e) {} },
 };
 
 const rootText = m => `${E.noteName(m)}   ${E.mtof(m).toFixed(1)} HZ`;
@@ -27,6 +30,7 @@ const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufac
 
 const NOTE = "m-0 max-w-[60ch] text-[13px]";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
+const ROUND = "absolute size-[30px] rounded-[50%] p-0";
 
 // LABEL ....... value, with the control beneath. Controls are named by `${id}-label`, the label text alone.
 function Param({ id, label, value, children }) {
@@ -82,62 +86,106 @@ function voiceGroups() {
   groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, text: v.name })) });
   return groups.filter(g => g.items.length);
 }
+const voiceExists = v => {
+  if (v[0] !== "s") return true;
+  const [fi, pi] = v.slice(1).split(":").map(Number);
+  return !!(E.fonts[fi] && E.fonts[fi].presets[pi]);
+};
+// null voice: the default, GM tubular bells once the soundfont has loaded, the built-in tubular bells before
+const defaultVoice = () => (E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v0");
 
-export default function Chime() {
+// ---------- units ----------
+// A unit is plain data; SOUND is kept for the visit only and never stored (browser audio starts only from a tap).
+const newId = () => "u" + Math.random().toString(36).slice(2, 10);
+const defaultUnit = (id = "u1") => ({
+  id, volume: 1, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: E.SCALE_LIST[0].name, voice: null,
+  channel: 1, notes: false, sound: false, x: 0, y: 0, z: 1,
+});
+const clampNum = (v, lo, hi, d) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+// Stored records are checked field by field: anything unknown or out of range falls back to the default.
+function readUnit(raw, seen) {
+  const d = defaultUnit(), r = raw && typeof raw === "object" ? raw : {};
+  let id = typeof r.id === "string" && /^u[\w-]{1,24}$/.test(r.id) ? r.id : newId();
+  if (seen.has(id)) id = newId();
+  seen.add(id);
+  return {
+    id,
+    volume: clampNum(r.volume, 0, 1, d.volume), wind: clampNum(r.wind, 0, 1, d.wind), decay: clampNum(r.decay, 0.3, 12, d.decay),
+    cutX: clampNum(r.cutX, 0, 1, d.cutX), q: clampNum(r.q, 0.5, 18, d.q), root: Math.round(clampNum(r.root, 48, 84, d.root)),
+    scale: SCALE_BY_NAME[r.scale] ? r.scale : d.scale,
+    voice: typeof r.voice === "string" && /^(v\d+|s\d+:\d+)$/.test(r.voice) ? r.voice : null,
+    channel: Math.round(clampNum(r.channel, 1, 16, d.channel)), notes: r.notes === true, sound: false,
+    x: Math.round(clampNum(r.x, -1e5, 1e5, 0)), y: Math.round(clampNum(r.y, -1e5, 1e5, 0)), z: Math.round(clampNum(r.z, 1, 1e6, 1)),
+  };
+}
+function loadUnits() {
+  const saved = store.get("units", null);
+  if (saved && Array.isArray(saved.units) && saved.units.length) {
+    const seen = new Set();
+    return saved.units.slice(0, MAX_UNITS).map(r => readUnit(r, seen));
+  }
+  // carried over from the single-unit version (those keys are removed after the first save)
+  const pos = store.get("pos", null), ch = store.get("midiCh", null);
+  return [readUnit({ ...defaultUnit(), x: pos && pos.x, y: pos && pos.y, channel: ch }, new Set())];
+}
+const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
+
+// One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
+const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront }) {
+  const { id } = unit;
+  const name = `CHIME ${index + 1}`;
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
-  const mainRef = useRef(null);
-  // the unit (drawing, its buttons, the notes drawer) drags from empty paper and stays inside the viewport
-  const dragControls = useDragControls();
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
   const cellRefs = useRef([]);
-
-  const [wind, setWind] = useState(0.45);
-  const [decay, setDecay] = useState(4);
-  const [cutX, setCutX] = useState(0.78);
-  const [q, setQ] = useState(3);
-  const [root, setRoot] = useState(72);
-  const [scaleIdx, setScaleIdx] = useState(0);
-  const [voice, setVoice] = useState("v0");
-  const [fontsVersion, setFontsVersion] = useState(0);
-  const [sound, setSound] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
+  const dragControls = useDragControls();
+  const x = useMotionValue(unit.x);
+  const y = useMotionValue(unit.y);
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
+  const [fitted, setFitted] = useState(false);
+  const chimeRef = useRef(null);
+  if (!chimeRef.current) chimeRef.current = E.createChime();
+  const chime = chimeRef.current;
+  const set = useCallback(patch => onChange(id, patch), [id, onChange]);
 
-  // MIDI out
-  // null until mounted: the server has no navigator, so support is only known in the browser
-  const [midiSupported, setMidiSupported] = useState(null);
-  const [midi, setMidi] = useState(() => M.status());
-  const [midiPorts, setMidiPorts] = useState([]);
-  const [midiCh, setMidiCh] = useState(1);
-  const [sendProg, setSendProg] = useState(true);
-  const [sendCC, setSendCC] = useState(true);
-  const [localSound, setLocalSound] = useState(true);
-  const [midiMsg, setMidiMsg] = useState("");
-  const [midiOpen, setMidiOpen] = useState(false);
-  const decayRef = useRef(decay);
-  decayRef.current = decay;
-
-  const scale = useMemo(() => E.sixOf(E.SCALE_LIST[scaleIdx].deg), [scaleIdx]);
-  const cutoff = E.cutoffHz(cutX);
+  const scale = useMemo(() => E.sixOf(SCALE_BY_NAME[unit.scale].deg), [unit.scale]);
+  const cutoff = E.cutoffHz(unit.cutX);
+  const voice = unit.voice || defaultVoice();
+  const channelRef = useRef(unit.channel);
+  const decayRef = useRef(unit.decay);
+  decayRef.current = unit.decay;
 
   // push parameters into the engine
-  useEffect(() => { E.setParams({ wind, decay, cutX, q, root, scale }); }, [wind, decay, cutX, q, root, scale]);
-  useEffect(() => { E.chooseVoice(voice); }, [voice, fontsVersion]);
+  useEffect(() => { chime.setParams({ volume: unit.volume, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
+    [chime, unit.volume, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const prog = useMemo(() => { chime.chooseVoice(voice); return chime.midiProgram(); }, [chime, voice, fontsVersion]);
+  useEffect(() => { chime.setSound(unit.sound); }, [chime, unit.sound]);
 
-  // canvas + animation loop; fetch the audio library in the background
-  useEffect(() => { E.preloadAudio(); return E.attach(canvasRef.current); }, []);
+  // canvas + animation; the instance is torn down with the unit
+  useEffect(() => {
+    const detach = chime.attach(canvasRef.current);
+    return () => { detach(); chime.destroy(); };
+  }, [chime]);
 
-  // flash the tube cell on every strike, and send it to the MIDI port
-  useEffect(() => E.onHit((i, vel) => {
-    if (M.currentOutput()) { M.note(E.noteOf(i), vel, decayRef.current); }
+  // flash the tube cell on every strike, and send it to the MIDI port on this unit's channel
+  useEffect(() => chime.onHit((i, vel) => {
+    if (M.currentOutput()) M.note(channelRef.current, chime.noteOf(i), vel, decayRef.current);
     const el = cellRefs.current[i];
     if (!el) return;
     el.classList.add("hit");
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.remove("hit"), 140);
-  }), []);
+  }), [chime]);
+
+  // MIDI: a channel change ends this channel's sounding notes first; program change and CCs follow the unit's
+  // voice, filter and channel, and are resent whenever a port becomes live (linkSeq) or the unit is created
+  useEffect(() => {
+    if (channelRef.current !== unit.channel) { M.endNotes(channelRef.current); channelRef.current = unit.channel; }
+  }, [unit.channel]);
+  useEffect(() => { if (sendProg && M.currentOutput()) M.program(unit.channel, prog.bank, prog.prog); }, [prog, sendProg, midiLink, unit.channel]);
+  useEffect(() => {
+    if (sendCC && M.currentOutput()) { M.cc(unit.channel, 74, unit.cutX * 127); M.cc(unit.channel, 71, (unit.q - 0.5) / 17.5 * 127); }
+  }, [unit.cutX, unit.q, sendCC, midiLink, unit.channel]);
 
   // size the canvas to whole-pixel multiples where there is room (its 1px border sits outside this)
   useEffect(() => {
@@ -146,6 +194,7 @@ export default function Chime() {
       const maxByH = Math.max(320, window.innerHeight - 110) * E.W / E.H;
       const w = Math.min(avail, maxByH, E.W * 2);
       setCanvasPx(w >= E.W * 2 ? Math.floor(w / E.W) * E.W : w);
+      setFitted(true);
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -154,17 +203,214 @@ export default function Chime() {
     return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
   }, []);
 
-  // put the unit back where it was last dragged, clamped to the viewport the page has now.
-  // Re-run as the canvas settles to its size, until the user drags (from then on motion keeps it inside)
-  const dragged = useRef(false);
+  // place the unit at its stored offset from the center, clamped to the viewport the page has now.
+  // Waits for the canvas to settle to its size; while dragging, motion keeps it inside.
   useEffect(() => {
-    const pos = store.get("pos", null);
-    if (!pos || dragged.current || !stageRef.current || !mainRef.current) return;
+    if (!fitted || !stageRef.current || !mainRef.current) return;
     const m = mainRef.current.getBoundingClientRect(), r = stageRef.current.getBoundingClientRect();
-    const left = r.left - x.get(), top = r.top - y.get(), w = r.width, h = r.height;
-    x.set(Math.min(Math.max(pos.x, m.left - left), m.right - left - w));
-    y.set(Math.min(Math.max(pos.y, m.top - top), m.bottom - top - h));
-  }, [x, y, canvasPx]);
+    const left = r.left - x.get(), top = r.top - y.get();
+    x.set(Math.round(Math.min(Math.max(unit.x, m.left - left), m.right - left - r.width)));
+    y.set(Math.round(Math.min(Math.max(unit.y, m.top - top), m.bottom - top - r.height)));
+  }, [fitted, canvasPx, unit.x, unit.y, x, y, mainRef]);
+
+  const onSound = async () => {
+    if (unit.sound) { set({ sound: false }); return; }
+    try {
+      await E.startAudio(); // unlocks inside this tap
+      set({ sound: true });
+    } catch (err) {
+      console.error("could not start audio", err);
+    }
+  };
+
+  // map through the content box, inside the canvas's 1px border
+  const onCanvasDown = e => {
+    const c = canvasRef.current, r = c.getBoundingClientRect();
+    // a press near a tube strikes it; anywhere else on the paper starts dragging the unit
+    if (chime.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H) < 0) dragControls.start(e);
+  };
+
+  const p = id; // per-unit prefix for element ids
+  const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
+  const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
+
+  return (
+    <motion.section
+      ref={stageRef}
+      aria-label={name}
+      drag
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={mainRef}
+      dragElastic={0}
+      dragMomentum={false}
+      onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
+      onPointerDownCapture={() => onFront(id)}
+      style={{ x, y, zIndex: unit.z }}
+      className="grid w-[min(402px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
+    >
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          width={E.W}
+          height={E.H}
+          className="box-content touch-none border border-foreground"
+          style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
+          onPointerDown={onCanvasDown}
+          aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
+        />
+        {/* the four round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
+        <Button aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className={`${ROUND} top-2.5 left-2.5`}>
+          <CopyPlus size={16} aria-hidden="true" shapeRendering="crispEdges" />
+        </Button>
+        <Button aria-label="SOUND" aria-pressed={unit.sound} onClick={onSound} className={`${ROUND} top-2.5 right-2.5`}>
+          {unit.sound
+            ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
+            : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
+        </Button>
+        <Button aria-label="NOTES" aria-pressed={unit.notes} aria-controls={`${p}-notes`} onClick={() => set({ notes: !unit.notes })} className={`${ROUND} bottom-2.5 left-2.5`}>
+          <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
+        </Button>
+        {/* the parameter rows; their state lives in the unit record, so values survive the popover closing */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button aria-label="SETTINGS" className={`${ROUND} right-2.5 bottom-2.5 data-[state=open]:bg-foreground data-[state=open]:text-background`}>
+              <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent aria-label={`SETTINGS ${name}`}>
+            <div className="grid gap-3.5">
+              <Param id={`${p}-p-volume`} label="VOLUME" value={unit.volume.toFixed(2)}>
+                <ParamSlider id={`${p}-p-volume`} min={0} max={1} step={0.01} value={unit.volume} onChange={v => set({ volume: v })} />
+              </Param>
+              <Param id={`${p}-p-wind`} label="WIND" value={unit.wind.toFixed(2)}>
+                <ParamSlider id={`${p}-p-wind`} min={0} max={1} step={0.01} value={unit.wind} onChange={v => set({ wind: v })} />
+              </Param>
+              <Param id={`${p}-p-decay`} label="DECAY" value={unit.decay.toFixed(1) + " S"}>
+                <ParamSlider id={`${p}-p-decay`} min={0.3} max={12} step={0.1} value={unit.decay} onChange={v => set({ decay: v })} />
+              </Param>
+              <Param id={`${p}-p-freq`} label="FREQUENCY" value={hz(cutoff)}>
+                <ParamSlider id={`${p}-p-freq`} min={0} max={1} step={0.001} value={unit.cutX} onChange={v => set({ cutX: v })} />
+              </Param>
+              <Param id={`${p}-p-res`} label="RESONANCE" value={"Q " + unit.q.toFixed(1)}>
+                <ParamSlider id={`${p}-p-res`} min={0.5} max={18} step={0.1} value={unit.q} onChange={v => set({ q: v })} />
+              </Param>
+              <Param id={`${p}-p-root`} label="ROOT" value={E.noteName(unit.root)}>
+                <ParamSelect id={`${p}-p-root`} value={String(unit.root)} display={rootText(unit.root)} onChange={v => set({ root: +v })}>
+                  {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
+                </ParamSelect>
+              </Param>
+              <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
+                <ParamSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} onChange={v => set({ scale: v })}>
+                  {SCALE_GROUPS.map(g => (
+                    <SelectGroup key={g}>
+                      <SelectLabel>{g.toUpperCase()}</SelectLabel>
+                      {E.SCALE_LIST.map(s => s.group === g && <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
+                    </SelectGroup>
+                  ))}
+                </ParamSelect>
+              </Param>
+              <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
+                <ParamSelect id={`${p}-p-voice`} value={voice} display={voiceText} onChange={v => set({ voice: v })}>
+                  {groups.map(g => (
+                    <SelectGroup key={g.label}>
+                      <SelectLabel>{g.label}</SelectLabel>
+                      {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
+                    </SelectGroup>
+                  ))}
+                </ParamSelect>
+              </Param>
+              <Param id={`${p}-p-ch`} label="CHANNEL" value={unit.channel === 10 ? "10  GM DRUMS" : String(unit.channel)}>
+                <ParamSelect id={`${p}-p-ch`} value={String(unit.channel)} display={channelText(unit.channel)} onChange={v => set({ channel: +v })}>
+                  {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
+                </ParamSelect>
+              </Param>
+              {count > 1 && <div className={ROW}><Button onClick={() => onRemove(id)}>REMOVE</Button></div>}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+      {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
+      <div id={`${p}-notes`} hidden={!unit.notes}>
+        <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[12px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
+          {scale.map((s, i) => {
+            const m = unit.root + s;
+            return (
+              // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
+              <button type="button" key={i} ref={el => (cellRefs.current[i] = el)}
+                onPointerDown={() => chime.strikeTube(i)} onClick={e => { if (!e.detail) chime.strikeTube(i); }}>
+                <b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </motion.section>
+  );
+});
+
+export default function Chime() {
+  const mainRef = useRef(null);
+  // the server renders one default unit; the stored list replaces it on mount
+  const [units, setUnits] = useState(() => [defaultUnit()]);
+  const loaded = useRef(false);
+  const [fontsVersion, setFontsVersion] = useState(0);
+
+  // MIDI out
+  // null until mounted: the server has no navigator, so support is only known in the browser
+  const [midiSupported, setMidiSupported] = useState(null);
+  const [midi, setMidi] = useState(() => M.status());
+  const [midiPorts, setMidiPorts] = useState([]);
+  const [sendProg, setSendProg] = useState(true);
+  const [sendCC, setSendCC] = useState(true);
+  const [localSound, setLocalSound] = useState(true);
+  const [midiMsg, setMidiMsg] = useState("");
+  const [midiOpen, setMidiOpen] = useState(false);
+
+  // fetch the audio library in the background; restore the units
+  useEffect(() => {
+    E.preloadAudio();
+    setUnits(loadUnits());
+    loaded.current = true;
+  }, []);
+  // save the units (without SOUND) a moment after the last change, and right away when the page goes away;
+  // the single-unit keys go once they're carried over
+  const unitsRef = useRef(units);
+  unitsRef.current = units;
+  const save = useCallback(() => {
+    store.set("units", { v: 1, units: unitsRef.current.map(({ sound, ...u }) => u) });
+    store.remove("pos"); store.remove("midiCh");
+  }, []);
+  useEffect(() => {
+    if (!loaded.current) return;
+    const t = setTimeout(save, 250);
+    window.addEventListener("pagehide", save);
+    return () => { clearTimeout(t); window.removeEventListener("pagehide", save); };
+  }, [units, save]);
+
+  const change = useCallback((id, patch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
+  // a copy takes the source's state, the lowest free channel, sits 24 px right and down, and goes on top
+  const copy = useCallback((id, at) => setUnits(us => {
+    const src = us.find(u => u.id === id);
+    if (!src || us.length >= MAX_UNITS) return us;
+    const z = Math.max(...us.map(u => u.z)) + 1;
+    return [...us, { ...src, id: newId(), channel: lowestFreeChannel(us), x: at.x + 24, y: at.y + 24, z }];
+  }), []);
+  const remove = useCallback(id => {
+    const us = unitsRef.current, u = us.find(v => v.id === id);
+    if (!u || us.length <= 1) return;
+    M.endNotes(u.channel); // end its sounding notes
+    setUnits(cur => cur.filter(v => v.id !== id));
+  }, []);
+  // the pressed unit goes on top; z values are renumbered 1..n before they grow large
+  const front = useCallback(id => setUnits(us => {
+    const max = Math.max(...us.map(u => u.z)), u = us.find(v => v.id === id);
+    if (!u || (u.z === max && us.filter(v => v.z === max).length === 1)) return us;
+    const next = us.map(v => (v.id === id ? { ...v, z: max + 1 } : v));
+    if (max + 1 <= 1000) return next;
+    const order = [...next].sort((a, b) => a.z - b.z).map(v => v.id);
+    return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
+  }), []);
 
   // bundled General MIDI soundfont
   useEffect(() => {
@@ -176,7 +422,8 @@ export default function Chime() {
         const ab = await res.arrayBuffer();
         if (dead || E.fonts.some(f => f.gm)) return;
         E.addFont(ab, "TimGM6mb", true);
-        setVoice(v => (v === "v0" ? "s0:" + E.findPreset(0, 0, 14) : v));
+        // a stored voice the font doesn't have goes back to the default (tubular bells)
+        setUnits(us => us.map(u => (u.voice && !voiceExists(u.voice) ? { ...u, voice: null } : u)));
         setFontsVersion(n => n + 1);
       } catch (err) {
         // the built-in synth voices still work without it
@@ -185,10 +432,11 @@ export default function Chime() {
     })();
     return () => { dead = true; };
   }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => voiceGroups(), [fontsVersion]);
 
   // ---------- MIDI out ----------
   useEffect(() => {
-    setMidiCh(store.get("midiCh", 1));
     setSendProg(store.get("sendProg", true));
     setSendCC(store.get("sendCC", true));
     setMidiSupported(M.supported());
@@ -199,7 +447,6 @@ export default function Chime() {
   }, []);
   // remember the chosen port by name, so it is picked again on the next connect or replug
   useEffect(() => { if (midi.connected) store.set("midiOutName", midi.wanted); }, [midi.connected, midi.wanted]);
-  useEffect(() => { M.setChannel(midiCh - 1); store.set("midiCh", midiCh); }, [midiCh]);
   useEffect(() => { store.set("sendProg", sendProg); store.set("sendCC", sendCC); }, [sendProg, sendCC]);
   useEffect(() => { E.setMuted(!localSound); }, [localSound]);
 
@@ -216,142 +463,28 @@ export default function Chime() {
         : (err && err.message) || "MIDI access failed.");
     }
   };
-  // program change and CCs follow from the linkSeq effects below
+  // program change and CCs follow from each unit's linkSeq effects
   const choosePort = id => { M.selectOutput(id); };
-  const onTestNote = () => { M.testNote(E.noteOf(0)); };
-
-  const onSound = useCallback(async () => {
-    try {
-      const on = await E.toggleSound();
-      setSound(on);
-    } catch (err) {
-      console.error("could not start audio", err);
-    }
-  }, []);
-
-  // map through the content box, inside the canvas's 1px border
-  const onCanvasDown = e => {
-    const c = canvasRef.current, r = c.getBoundingClientRect();
-    // a press near a tube strikes it; anywhere else on the paper starts dragging the unit
-    if (E.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H) < 0) dragControls.start(e);
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const groups = useMemo(() => voiceGroups(), [fontsVersion]);
-  const prog = useMemo(() => { E.chooseVoice(voice); return E.midiProgram(); }, [voice, fontsVersion]);
-  // linkSeq bumps each time a port becomes live (chosen, auto-picked or plugged back in)
-  const link = midi.linkSeq;
-  useEffect(() => { if (sendProg && M.currentOutput()) M.program(prog.bank, prog.prog); }, [prog, sendProg, link, midiCh]);
-  useEffect(() => { if (sendCC && M.currentOutput()) { M.cc(74, cutX * 127); M.cc(71, (q - 0.5) / 17.5 * 127); } }, [cutX, q, sendCC, link, midiCh]);
+  // one test note per unit: its first tube, on its channel
+  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + E.sixOf(SCALE_BY_NAME[u.scale].deg)[0])); };
+  const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
   const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
-  const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
   const livePort = midi.port && midiPorts.find(p => p.id === midi.port.id);
   const portText = livePort ? portName(livePort) : midi.wanted && !midi.port ? `${midi.wanted.toUpperCase()}   DISCONNECTED` : "NONE";
-  const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
 
   return (
     <main ref={mainRef} className="fixed inset-0 grid place-items-center overflow-hidden pt-[max(16px,env(safe-area-inset-top,0px))] pr-[max(16px,env(safe-area-inset-right,0px))] pb-[max(16px,env(safe-area-inset-bottom,0px))] pl-[max(16px,env(safe-area-inset-left,0px))]">
-      <motion.section
-        ref={stageRef}
-        drag
-        dragListener={false}
-        dragControls={dragControls}
-        dragConstraints={mainRef}
-        dragElastic={0}
-        dragMomentum={false}
-        onDragStart={() => { dragged.current = true; }}
-        onDragEnd={() => store.set("pos", { x: Math.round(x.get()), y: Math.round(y.get()) })}
-        style={{ x, y }}
-        className="grid w-[min(402px,100%)] min-w-0 justify-items-start"
-      >
-        <div className="relative">
-          <canvas
-            ref={canvasRef}
-            width={E.W}
-            height={E.H}
-            className="box-content touch-none border border-foreground"
-            style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
-            onPointerDown={onCanvasDown}
-            aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
-          />
-          {/* the three round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
-          <Button aria-label="SOUND" aria-pressed={sound} onClick={onSound} className="absolute top-2.5 right-2.5 size-[30px] rounded-[50%] p-0">
-            {sound
-              ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
-              : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
-          </Button>
-          <Button aria-label="NOTES" aria-pressed={showNotes} aria-controls="tube-notes" onClick={() => setShowNotes(v => !v)} className="absolute bottom-2.5 left-2.5 size-[30px] rounded-[50%] p-0">
-            <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
-          </Button>
-          {/* the parameter rows; their state stays in Chime, so values survive the popover closing */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button aria-label="SETTINGS" className="absolute right-2.5 bottom-2.5 size-[30px] rounded-[50%] p-0 data-[state=open]:bg-foreground data-[state=open]:text-background">
-                <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent aria-label="SETTINGS">
-              <div className="grid gap-3.5">
-                <Param id="p-wind" label="WIND" value={wind.toFixed(2)}>
-                  <ParamSlider id="p-wind" min={0} max={1} step={0.01} value={wind} onChange={setWind} />
-                </Param>
-                <Param id="p-decay" label="DECAY" value={decay.toFixed(1) + " S"}>
-                  <ParamSlider id="p-decay" min={0.3} max={12} step={0.1} value={decay} onChange={setDecay} />
-                </Param>
-                <Param id="p-freq" label="FREQUENCY" value={hz(cutoff)}>
-                  <ParamSlider id="p-freq" min={0} max={1} step={0.001} value={cutX} onChange={setCutX} />
-                </Param>
-                <Param id="p-res" label="RESONANCE" value={"Q " + q.toFixed(1)}>
-                  <ParamSlider id="p-res" min={0.5} max={18} step={0.1} value={q} onChange={setQ} />
-                </Param>
-                <Param id="p-root" label="ROOT" value={E.noteName(root)}>
-                  <ParamSelect id="p-root" value={String(root)} display={rootText(root)} onChange={v => setRoot(+v)}>
-                    {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
-                  </ParamSelect>
-                </Param>
-                <Param id="p-scale" label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                  <ParamSelect id="p-scale" value={String(scaleIdx)} display={E.SCALE_LIST[scaleIdx].name} onChange={v => setScaleIdx(+v)}>
-                    {SCALE_GROUPS.map(g => (
-                      <SelectGroup key={g}>
-                        <SelectLabel>{g.toUpperCase()}</SelectLabel>
-                        {E.SCALE_LIST.map((s, i) => s.group === g && <SelectItem key={i} value={String(i)}>{s.name}</SelectItem>)}
-                      </SelectGroup>
-                    ))}
-                  </ParamSelect>
-                </Param>
-                <Param id="p-voice" label="SOUNDFONT" value={voiceTag}>
-                  <ParamSelect id="p-voice" value={voice} display={voiceText} onChange={setVoice}>
-                    {groups.map(g => (
-                      <SelectGroup key={g.label}>
-                        <SelectLabel>{g.label}</SelectLabel>
-                        {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
-                      </SelectGroup>
-                    ))}
-                  </ParamSelect>
-                </Param>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-        {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
-        <div id="tube-notes" hidden={!showNotes}>
-          <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[12px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
-            {scale.map((s, i) => {
-              const m = root + s;
-              return (
-                // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
-                <button type="button" key={i} ref={el => (cellRefs.current[i] = el)}
-                  onPointerDown={() => E.strikeTube(i)} onClick={e => { if (!e.detail) E.strikeTube(i); }}>
-                  <b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </motion.section>
+      {/* every unit sits in the same centered cell, placed by its offset from the center; `isolate` keeps
+          their stacking below the MIDI button */}
+      <div className="isolate grid size-full place-items-center">
+        {units.map((u, i) => (
+          <ChimeUnit key={u.id} unit={u} index={i} count={units.length} mainRef={mainRef} fontsVersion={fontsVersion} groups={groups}
+            midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={front} />
+        ))}
+      </div>
 
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
@@ -390,11 +523,6 @@ export default function Chime() {
               </Param>
               {midiReady && (
                 <>
-                  <Param id="m-ch" label="CHANNEL" value={midiCh === 10 ? "10  GM DRUMS" : String(midiCh)}>
-                    <ParamSelect id="m-ch" value={String(midiCh)} display={channelText(midiCh)} onChange={v => setMidiCh(+v)}>
-                      {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
-                    </ParamSelect>
-                  </Param>
                   <div className="grid gap-1.5 text-[13px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
                     <label><Checkbox checked={sendProg} onCheckedChange={v => setSendProg(v === true)} /> SEND PROGRAM CHANGE</label>
                     <label><Checkbox checked={sendCC} onCheckedChange={v => setSendCC(v === true)} /> SEND FILTER AS CC74 / CC71</label>
@@ -402,8 +530,8 @@ export default function Chime() {
                   </div>
                   <div className={ROW}>
                     <Button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</Button>
-                    <Button onClick={() => M.allNotesOff()}>PANIC</Button>
-                    <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Note length follows DECAY. TEST NOTE plays the first tube. PANIC sends All Notes Off on the chosen channel.</span>
+                    <Button onClick={onPanic}>PANIC</Button>
+                    <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Each chime sends on the channel in its settings. Note length follows its DECAY. TEST NOTE plays every chime&apos;s first tube. PANIC sends All Notes Off on every chime&apos;s channel.</span>
                   </div>
                 </>
               )}
