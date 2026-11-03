@@ -125,7 +125,7 @@ The parameter rows (WIND, DECAY, FREQUENCY, RESONANCE, ROOT, SCALE, SOUNDFONT) S
 - **THEN** focus returned to SETTINGS on close, and the WIND row reads 0.20
 
 ### Requirement: Tube notes drawer
-The six-cell tube readout (each tube's number, note name and frequency) SHALL be hidden when the page loads. The NOTES toggle, a 30 px circular button in the bottom-left corner of the drawing that shows an eighth-note icon, SHALL show and hide it. When shown, the readout SHALL slide down from under the drawing and sit flush against the drawing's bottom border, the same width as the drawing, sharing that border. While hidden it MUST NOT be reachable by keyboard or exposed to assistive technology. Users who prefer reduced motion SHALL see it appear without the slide.
+The six-cell tube readout SHALL be hidden when the page loads. Each cell is a note pad showing its tube's note name and frequency, with no tube-number label, and SHALL strike that tube (sound, MIDI and the cell's flash, exactly as tapping the tube in the drawing) when pressed with a pointer or activated with Enter or Space. A pad SHALL invert on hover. The NOTES toggle, a 30 px circular button in the bottom-left corner of the drawing that shows an eighth-note icon, SHALL show and hide it. When shown, the readout SHALL appear at once, without animation, flush against the drawing's bottom border, the same width as the drawing, sharing that border. While hidden it MUST NOT be reachable by keyboard or exposed to assistive technology.
 
 #### Scenario: Hidden on load
 - **WHEN** the page loads
@@ -133,11 +133,15 @@ The six-cell tube readout (each tube's number, note name and frequency) SHALL be
 
 #### Scenario: Showing the readout
 - **WHEN** the user turns NOTES on
-- **THEN** NOTES renders inverted and pressed, and the readout slides into view directly under the drawing, its top edge on the drawing's bottom border
+- **THEN** NOTES renders inverted and pressed, and the readout appears directly under the drawing, its top edge on the drawing's bottom border
+
+#### Scenario: Striking from a pad
+- **WHEN** the readout is shown and the user presses the third pad
+- **THEN** the third tube is struck once: its note-on goes to the selected MIDI port and the pad flashes inverted
 
 #### Scenario: Hiding the readout
 - **WHEN** the user turns NOTES off again
-- **THEN** the readout slides back under the drawing and is hidden
+- **THEN** the readout is hidden
 
 ### Requirement: Accessible names and roles
 Every control SHALL have an accessible name equal to its visible label (for example "WIND", "MIDI OUT", "SEND PROGRAM CHANGE", "TEST NOTE"), and the correct role (button, combobox, slider, checkbox). Sliders SHALL expose their current, minimum and maximum values. The visible labels, button texts and states named by the `midi-output` capability MUST remain the same.

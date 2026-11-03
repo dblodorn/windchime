@@ -305,20 +305,19 @@ export default function Chime() {
             </PopoverContent>
           </Popover>
         </div>
-        {/* tube notes drawer: hidden until NOTES is on, then slides down from under the drawing, flush with its bottom border */}
-        <div id="tube-notes" inert={!showNotes} aria-hidden={!showNotes} data-open={showNotes || undefined}
-          className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out data-[open]:grid-rows-[1fr] motion-reduce:transition-none">
-          <div className="min-h-0 overflow-hidden">
-            <div className="tubes grid -translate-y-full transition-transform duration-200 ease-out in-data-[open]:translate-y-0 motion-reduce:transition-none max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
-              {scale.map((s, i) => {
-                const m = root + s;
-                return (
-                  <div key={i} ref={el => (cellRefs.current[i] = el)}>
-                    T{i + 1}<b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
-                  </div>
-                );
-              })}
-            </div>
+        {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
+        <div id="tube-notes" hidden={!showNotes}>
+          <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[12px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
+            {scale.map((s, i) => {
+              const m = root + s;
+              return (
+                // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
+                <button type="button" key={i} ref={el => (cellRefs.current[i] = el)}
+                  onPointerDown={() => E.strikeTube(i)} onClick={e => { if (!e.detail) E.strikeTube(i); }}>
+                  <b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
