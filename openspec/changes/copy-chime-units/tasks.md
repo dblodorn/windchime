@@ -73,4 +73,5 @@
 
 ## 7. Ship
 
-- [ ] 7.1 Commit with the attribution lines, push the branch, open a PR describing units, per-unit channels, storage migration and the checks run; confirm the Vercel preview builds
+- [x] 7.1 Commit with the attribution lines, push the branch, open a PR describing units, per-unit channels, storage migration and the checks run; confirm the Vercel preview builds
+  - PR: https://github.com/dblodorn/windchime/pull/7; preview `windchime-cgnkcyc8e-db13.vercel.app` built READY (behind Vercel login).
