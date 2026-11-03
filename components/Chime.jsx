@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Settings2, Volume2, VolumeX } from "lucide-react";
+import { EighthNote, Settings2, Volume2, VolumeX } from "lucide-react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,7 @@ export default function Chime() {
   const [voice, setVoice] = useState("v0");
   const [fontsVersion, setFontsVersion] = useState(0);
   const [sound, setSound] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
 
   // MIDI out
@@ -234,7 +235,7 @@ export default function Chime() {
 
   return (
     <main className="mx-auto grid w-full max-w-[402px] justify-items-center">
-      <section className="grid w-full min-w-0 justify-items-start gap-3" ref={stageRef}>
+      <section className="grid w-full min-w-0 justify-items-start" ref={stageRef}>
         <div className="relative">
           <canvas
             ref={canvasRef}
@@ -245,11 +246,14 @@ export default function Chime() {
             onPointerDown={onCanvasDown}
             aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
           />
-          {/* the two round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
+          {/* the three round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
           <Button aria-label="SOUND" aria-pressed={sound} onClick={onSound} className="absolute top-2.5 right-2.5 size-[30px] rounded-[50%] p-0">
             {sound
               ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
               : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
+          </Button>
+          <Button aria-label="NOTES" aria-pressed={showNotes} aria-controls="tube-notes" onClick={() => setShowNotes(v => !v)} className="absolute bottom-2.5 left-2.5 size-[30px] rounded-[50%] p-0">
+            <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
           </Button>
           {/* the parameter rows; their state stays in Chime, so values survive the popover closing */}
           <Popover>
@@ -301,15 +305,21 @@ export default function Chime() {
             </PopoverContent>
           </Popover>
         </div>
-        <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
-          {scale.map((s, i) => {
-            const m = root + s;
-            return (
-              <div key={i} ref={el => (cellRefs.current[i] = el)}>
-                T{i + 1}<b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
-              </div>
-            );
-          })}
+        {/* tube notes drawer: hidden until NOTES is on, then slides down from under the drawing, flush with its bottom border */}
+        <div id="tube-notes" inert={!showNotes} aria-hidden={!showNotes} data-open={showNotes || undefined}
+          className="grid grid-rows-[0fr] transition-[grid-template-rows] duration-200 ease-out data-[open]:grid-rows-[1fr] motion-reduce:transition-none">
+          <div className="min-h-0 overflow-hidden">
+            <div className="tubes grid -translate-y-full transition-transform duration-200 ease-out in-data-[open]:translate-y-0 motion-reduce:transition-none max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
+              {scale.map((s, i) => {
+                const m = root + s;
+                return (
+                  <div key={i} ref={el => (cellRefs.current[i] = el)}>
+                    T{i + 1}<b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
