@@ -7,12 +7,12 @@ Defines the parameter sheet's 1-bit visual language and how its controls (button
 ## Requirements
 
 ### Requirement: Two-color, monospace, square visual language
-Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have rounded corners or a box shadow. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
+Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the SOUND toggle, a 30 px circular button in the top-right corner of the drawing that shows a speaker icon (on) or a muted-speaker icon (off). The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
 
 #### Scenario: Computed styles stay within the palette
 - **WHEN** the page is rendered and every control is shown in its resting, hover, pressed, focused, open and disabled states
 - **THEN** every computed `color`, `background-color`, `border-color` and `outline-color` is black or white (or one of them at reduced opacity for disabled)
-- **AND** every computed `border-radius` is `0px` and every `box-shadow` is `none`
+- **AND** every computed `border-radius` is `0px` except on the SOUND toggle, and every `box-shadow` is `none`
 
 #### Scenario: Font
 - **WHEN** any label, value, option or button text is rendered
@@ -34,14 +34,14 @@ Each parameter SHALL be shown as a row with its uppercase label on the left, a d
 - **THEN** the row's value text updates on every change (for example `4.0 S` → `4.1 S`)
 
 ### Requirement: Buttons
-Buttons SHALL have a 1px black border on white, with uppercase monospace text. On hover, and while a toggle button is pressed (SOUND ON, REC/STOP), a button SHALL show inverted colors (white text on black). A disabled button MUST look dimmed, MUST NOT invert on hover and MUST NOT respond to activation. Buttons SHALL activate with a pointer click, a touch tap, Enter or Space.
+Buttons SHALL have a 1px black border on white, with uppercase monospace text. On hover, and while a toggle button is pressed (SOUND), a button SHALL show inverted colors (white text on black). A disabled button MUST look dimmed, MUST NOT invert on hover and MUST NOT respond to activation. Buttons SHALL activate with a pointer click, a touch tap, Enter or Space.
 
 #### Scenario: Toggle pressed state
 - **WHEN** the user turns SOUND on
-- **THEN** the button reads SOUND ON, renders inverted, and exposes a pressed state to assistive technology
+- **THEN** the round SOUND button over the drawing shows the speaker-on icon, renders inverted, and exposes a pressed state to assistive technology
 
 #### Scenario: Disabled button
-- **WHEN** SAVE MIDI is disabled because there is no take
+- **WHEN** TEST NOTE is disabled because no MIDI port is selected
 - **THEN** it renders dimmed, does not invert on hover, and does nothing on click or key press
 
 #### Scenario: Audio starts inside the tap

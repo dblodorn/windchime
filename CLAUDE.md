@@ -1,6 +1,6 @@
-# Six Tube Chime (windchime)
+# Chime (windchime)
 
-A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc clapper, and every strike on a tube is a note. It plays in the browser (Tone.js + an SF2 sampler), sends live MIDI to hardware (Web MIDI), and exports `.mid` files.
+A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc clapper, and every strike on a tube is a note. It plays in the browser (Tone.js + an SF2 sampler) and sends live MIDI to hardware (Web MIDI). The page title is "Chime"; there is no on-page heading and no AUDIO or MIDI status line. The engine can still record takes and build `.mid` files (sections 8 and 10), but the UI no longer exposes REC, RENDER or SAVE MIDI, and it has no .sf2 upload: the SOUNDFONT select offers the bundled GM font and the built-in synth voices.
 
 - Live: https://chime.dmbk.io (Vercel project `windchime`, team `db13`; also served at https://windchime-lyart.vercel.app). DNS for dmbk.io is on DigitalOcean: `chime` is a CNAME to the Vercel project target `34679086444df785.vercel-dns-016.com`.
 - Repo: https://github.com/dblodorn/windchime. Every push to `main` deploys to production.
@@ -47,15 +47,15 @@ public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB)
 
 ### Voice ids
 
-`chooseVoice(value)`: `"v<i>"` is a built-in voice, `"s<font>:<preset>"` is a preset in `fonts[font]`. The bundled GM font is `unshift`ed to index 0 when it loads, so `Chime.jsx` remaps any `s` id by +1 at that moment. Keep that in mind if you change how fonts load.
+`chooseVoice(value)`: `"v<i>"` is a built-in voice, `"s<font>:<preset>"` is a preset in `fonts[font]`. The bundled GM font is the only font the UI loads (there is no .sf2 upload), so every `s` id is `s0:<preset>`. `addFont` still `unshift`s a GM font to index 0, so if uploads ever come back, existing `s` ids need remapping by +1 when the GM font arrives.
 
 ## Constraints and decisions to keep
 
 - **Visual language**: two colors only (pure black lines, white ground), pixelated canvas scaled by whole multiples, Courier Prime for every label. Parameter rows are `LABEL ....... value` with dotted leaders. No color, no rounded corners, no shadows.
   - It is enforced through the theme: every shadcn color token in `app/globals.css` is `#000000` or `#ffffff`, `--accent` is black (so highlights invert), `--radius` and every `--radius-*` are 0, the `--shadow-*` namespaces are cleared, and there is no `.dark` block or `dark` variant.
   - Fonts: next/font exposes Courier Prime as `--font-courier`; `--font-sans`/`--font-mono` point at it. Don't rename it back to `--font-mono`, which would refer to itself in `@theme inline`.
-  - Components use text glyphs (`▾`, `▴`, `■`) instead of icons; there is no icon library. Focus is `focus-visible:outline-1 outline-dashed outline-foreground outline-offset-3` (no rings, which are box shadows).
-  - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. Remove `lucide-react` from `package.json` if the CLI adds it back. The CLI offers to overwrite `button.jsx`: answer no. Overlays get no tint: `dialog.jsx`'s overlay is transparent (it still catches outside clicks), since a grey backdrop would break the two-color rule.
+  - Components use text glyphs (`▾`, `▴`, `■`) instead of icons. The one exception, by request, is the SOUND toggle: a 30 px round button in the canvas's top-right corner showing Lucide's `Volume2`/`VolumeX` (`lucide-react`) with `shapeRendering="crispEdges"` so it stays two-color, `aria-label="SOUND"` and `aria-pressed`. It is also the only rounded element (`rounded-[50%]`, which the zeroed `--radius-*` tokens don't touch). Don't add other icons or rounded shapes without asking. Focus is `focus-visible:outline-1 outline-dashed outline-foreground outline-offset-3` (no rings, which are box shadows).
+  - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. `lucide-react` is a dependency now (for the SOUND toggle only); don't use the shadcn CLI's icon imports. The CLI offers to overwrite `button.jsx`: answer no. Overlays get no tint: `dialog.jsx`'s overlay is transparent (it still catches outside clicks), since a grey backdrop would break the two-color rule.
 - **Radix specifics in `Chime.jsx`**:
   - Select values must be non-empty strings: numbers go through `String(n)`, and MIDI OUT's NONE is the `"none"` sentinel.
   - `ParamSelect` passes the current choice's text as `SelectValue` children (`display`), because Radix only fills it on the client. `Slider` draws a stand-in thumb until mount for the same reason.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
-const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
 const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
@@ -24,7 +24,6 @@ const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
 const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
 
 const NOTE = "m-0 max-w-[60ch] text-[13px]";
-const STATUS = "m-0 text-[13px] whitespace-pre-wrap tabular-nums";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
 
 // LABEL ....... value, with the control beneath. Controls are named by `${id}-label`, the label text alone.
@@ -72,16 +71,11 @@ function voiceGroups() {
   const groups = [];
   E.fonts.forEach((f, fi) => {
     const list = f.presets.map((p, i) => ({ p, i })).sort((a, b) => a.p.bank - b.p.bank || a.p.preset - b.p.preset);
-    const tag = E.fonts.length > 1 ? f.fileName.toUpperCase().slice(0, 24) + " / " : "";
     const opt = ({ p, i }) => ({ value: `s${fi}:${i}`, text: `${String(p.preset + 1).padStart(3, " ")}  ${p.name.toUpperCase()}` });
     const optBank = ({ p, i }) => ({ value: `s${fi}:${i}`, text: `${p.bank}:${p.preset + 1}  ${p.name.toUpperCase()}` });
-    if (f.gm) {
-      E.GM_FAMILIES.forEach((fam, k) => groups.push({ label: tag + fam, items: list.filter(x => x.p.bank === 0 && x.p.preset >> 3 === k).map(opt) }));
-      groups.push({ label: tag + "DRUM KITS", items: list.filter(x => x.p.bank === 128).map(opt) });
-      groups.push({ label: tag + "OTHER BANKS", items: list.filter(x => x.p.bank !== 0 && x.p.bank !== 128).map(optBank) });
-    } else {
-      groups.push({ label: f.fileName.toUpperCase().slice(0, 40), items: list.map(optBank) });
-    }
+    E.GM_FAMILIES.forEach((fam, k) => groups.push({ label: fam, items: list.filter(x => x.p.bank === 0 && x.p.preset >> 3 === k).map(opt) }));
+    groups.push({ label: "DRUM KITS", items: list.filter(x => x.p.bank === 128).map(opt) });
+    groups.push({ label: "OTHER BANKS", items: list.filter(x => x.p.bank !== 0 && x.p.bank !== 128).map(optBank) });
   });
   groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, text: v.name })) });
   return groups.filter(g => g.items.length);
@@ -91,7 +85,6 @@ export default function Chime() {
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const cellRefs = useRef([]);
-  const fileRef = useRef(null);
 
   const [wind, setWind] = useState(0.45);
   const [decay, setDecay] = useState(4);
@@ -101,12 +94,7 @@ export default function Chime() {
   const [scaleIdx, setScaleIdx] = useState(0);
   const [voice, setVoice] = useState("v0");
   const [fontsVersion, setFontsVersion] = useState(0);
-  const [sfMsg, setSfMsg] = useState("loading General MIDI soundfont");
   const [sound, setSound] = useState(false);
-  const [audioMsg, setAudioMsg] = useState("off");
-  const [recInfo, setRecInfo] = useState(null);
-  const [take, setTake] = useState(null);
-  const [saveMsg, setSaveMsg] = useState("");
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
 
   // MIDI out
@@ -119,7 +107,6 @@ export default function Chime() {
   const [sendCC, setSendCC] = useState(true);
   const [localSound, setLocalSound] = useState(true);
   const [midiMsg, setMidiMsg] = useState("");
-  const [midiCount, setMidiCount] = useState(0);
   const [midiOpen, setMidiOpen] = useState(false);
   const decayRef = useRef(decay);
   decayRef.current = decay;
@@ -136,7 +123,7 @@ export default function Chime() {
 
   // flash the tube cell on every strike, and send it to the MIDI port
   useEffect(() => E.onHit((i, vel) => {
-    if (M.currentOutput()) { M.note(E.noteOf(i), vel, decayRef.current); setMidiCount(n => n + 1); }
+    if (M.currentOutput()) { M.note(E.noteOf(i), vel, decayRef.current); }
     const el = cellRefs.current[i];
     if (!el) return;
     el.classList.add("hit");
@@ -168,16 +155,12 @@ export default function Chime() {
         if (!res.ok) throw new Error("HTTP " + res.status);
         const ab = await res.arrayBuffer();
         if (dead || E.fonts.some(f => f.gm)) return;
-        const f = E.addFont(ab, "TimGM6mb", true);
-        setVoice(v => {
-          if (v === "v0") return "s0:" + E.findPreset(0, 0, 14);
-          if (v[0] === "s") { const [fi, pi] = v.slice(1).split(":").map(Number); return `s${fi + 1}:${pi}`; }
-          return v;
-        });
+        E.addFont(ab, "TimGM6mb", true);
+        setVoice(v => (v === "v0" ? "s0:" + E.findPreset(0, 0, 14) : v));
         setFontsVersion(n => n + 1);
-        setSfMsg(`GENERAL MIDI   TimGM6mb   ${f.presets.length} PRESETS`);
       } catch (err) {
-        if (!dead) setSfMsg(`The General MIDI soundfont did not load (${err.message || "network error"}). Built-in voices and your own .sf2 files still work.`);
+        // the built-in synth voices still work without it
+        if (!dead) console.error("General MIDI soundfont did not load", err);
       }
     })();
     return () => { dead = true; };
@@ -215,66 +198,16 @@ export default function Chime() {
   };
   // program change and CCs follow from the linkSeq effects below
   const choosePort = id => { M.selectOutput(id); };
-  const onTestNote = () => { M.testNote(E.noteOf(0)); setMidiCount(n => n + 1); };
-
-  // recording readout
-  useEffect(() => {
-    if (!recInfo) return;
-    const id = setInterval(() => setRecInfo(E.recording()), 250);
-    return () => clearInterval(id);
-  }, [recInfo !== null]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // audio state readout
-  useEffect(() => {
-    const id = setInterval(() => setAudioMsg(E.audioState()), 500);
-    return () => clearInterval(id);
-  }, []);
+  const onTestNote = () => { M.testNote(E.noteOf(0)); };
 
   const onSound = useCallback(async () => {
     try {
       const on = await E.toggleSound();
       setSound(on);
-      setAudioMsg(E.audioState());
     } catch (err) {
-      setAudioMsg("could not start audio: " + (err.message || err));
+      console.error("could not start audio", err);
     }
   }, []);
-
-  const onRec = () => {
-    if (recInfo) { setTake(E.stopRec()); setRecInfo(null); }
-    else { E.startRec(); setRecInfo(E.recording()); }
-    setSaveMsg("");
-  };
-  const onRender = () => { setTake(E.renderTake(120)); setSaveMsg(""); };
-  const onSave = () => {
-    if (!take) return;
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-    const name = `wind-chime-${take.kind.toLowerCase()}-${stamp}.mid`;
-    const url = URL.createObjectURL(new Blob([E.buildMidi(take)], { type: "audio/midi" }));
-    const a = document.createElement("a");
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    setSaveMsg("SAVED   " + name);
-  };
-
-  const onFile = async e => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setSfMsg(`reading ${file.name} (${(file.size / 1048576).toFixed(1)} MB)`);
-    try {
-      const f = E.addFont(await file.arrayBuffer(), file.name.replace(/\.sf2$/i, ""));
-      const fi = E.fonts.length - 1;
-      let idx = -1;
-      for (const [b, pr] of [[0, 14], [0, 9], [0, 11], [0, 10], [0, 8]]) { idx = E.findPreset(fi, b, pr); if (idx >= 0) break; }
-      if (idx < 0) idx = f.presets.findIndex(p => /bell|chime|glock|celest|vib/i.test(p.name));
-      setFontsVersion(n => n + 1);
-      setVoice(`s${fi}:${idx >= 0 ? idx : 0}`);
-      setSfMsg(`${file.name}   ${f.presets.length} PRESETS ADDED`);
-    } catch (err) {
-      setSfMsg(err.message || "Could not read that file as a SoundFont.");
-    }
-    e.target.value = "";
-  };
 
   // map through the content box, inside the canvas's 1px border
   const onCanvasDown = e => {
@@ -293,33 +226,31 @@ export default function Chime() {
   const midiReady = midi.connected;
   const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
-  const midiLine = !midiReady ? "MIDI    not connected"
-    : midi.port ? `MIDI    ${midi.port.name.toUpperCase()}   ${midi.port.state === "connected" ? "CONNECTED" : "DISCONNECTED"} · ${(midi.port.connection || "closed").toUpperCase()}   CH ${midiCh}   ${midiCount} NOTES SENT`
-    : midi.wanted ? `MIDI    ${midi.wanted.toUpperCase()}   DISCONNECTED`
-    : "MIDI    choose an interface";
   const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
   const livePort = midi.port && midiPorts.find(p => p.id === midi.port.id);
   const portText = livePort ? portName(livePort) : midi.wanted && !midi.port ? `${midi.wanted.toUpperCase()}   DISCONNECTED` : "NONE";
-  const voiceTag = voice[0] === "s" ? (E.fonts[+voice.slice(1).split(":")[0]]?.gm ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SF2") : "SYNTH";
-
-  const audioLine = !sound ? "AUDIO   off"
-    : audioMsg === "running" ? `AUDIO   running   LOW-PASS ${hz(cutoff)}  Q ${q.toFixed(1)}`
-    : `AUDIO   ${audioMsg}, tap SOUND again`;
-  const takeLine = recInfo ? `REC     ${fmt(recInfo.secs)}   ${recInfo.notes} NOTES`
-    : take ? `TAKE    ${take.kind}   ${fmt(take.dur)}   ${take.hits.length} NOTES` : "TAKE    none yet";
+  const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
 
   return (
     <main className="mx-auto grid max-w-[1060px] gap-7 min-[860px]:grid-cols-[minmax(0,480px)_minmax(0,1fr)] min-[860px]:items-start">
       <section className="grid min-w-0 justify-items-start gap-3 min-[860px]:sticky min-[860px]:top-[max(20px,env(safe-area-inset-top,0px))]" ref={stageRef}>
-        <canvas
-          ref={canvasRef}
-          width={E.W}
-          height={E.H}
-          className="box-content border border-foreground"
-          style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
-          onPointerDown={onCanvasDown}
-          aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
-        />
+        <div className="relative">
+          <canvas
+            ref={canvasRef}
+            width={E.W}
+            height={E.H}
+            className="box-content border border-foreground"
+            style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
+            onPointerDown={onCanvasDown}
+            aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
+          />
+          {/* the one round control and the one icon on the page, by request: a Lucide speaker, drawn without anti-aliasing */}
+          <Button aria-label="SOUND" aria-pressed={sound} onClick={onSound} className="absolute top-2.5 right-2.5 size-[30px] rounded-[50%] p-0">
+            {sound
+              ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
+              : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
+          </Button>
+        </div>
         <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
           {scale.map((s, i) => {
             const m = root + s;
@@ -333,11 +264,6 @@ export default function Chime() {
       </section>
 
       <section className="grid max-w-[520px] min-w-0 gap-[22px]">
-        <header>
-          <h1 className="m-0 text-[22px] font-bold tracking-[.08em] text-balance">SIX TUBE CHIME</h1>
-          <p className="mt-1.5 max-w-[60ch]">Wind pushes the sail, the sail swings the clapper, the clapper strikes the tubes. Every strike is a MIDI note. Tap a tube to strike it by hand.</p>
-        </header>
-        <hr className="border-foreground" />
         <div className="grid gap-3.5">
           <Param id="p-wind" label="WIND" value={wind.toFixed(2)}>
             <ParamSlider id="p-wind" min={0} max={1} step={0.01} value={wind} onChange={setWind} />
@@ -375,27 +301,8 @@ export default function Chime() {
                 </SelectGroup>
               ))}
             </ParamSelect>
-            <div className={ROW}>
-              <Button onClick={() => fileRef.current && fileRef.current.click()}>ADD .SF2 FILE</Button>
-              <input type="file" ref={fileRef} accept=".sf2" hidden onChange={onFile} />
-              <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>{sfMsg}</span>
-            </div>
           </Param>
         </div>
-        <hr className="border-foreground" />
-        <div className="flex flex-wrap gap-2">
-          <Button aria-pressed={sound} onClick={onSound}>{sound ? "SOUND ON" : "SOUND OFF"}</Button>
-          <Button aria-pressed={!!recInfo} onClick={onRec}>{recInfo ? "STOP" : "REC"}</Button>
-          <Button onClick={onRender}>RENDER 2:00</Button>
-          <Button disabled={!take || !take.hits.length} onClick={onSave}>SAVE MIDI</Button>
-        </div>
-        <p className={STATUS}>{audioLine}</p>
-        <p className={STATUS}>{midiLine}</p>
-        <p className={STATUS}>{takeLine}{saveMsg ? "\n" + saveMsg : ""}</p>
-        <p className={NOTE}>
-          MIDI: format 0, 480 PPQ, 120 BPM, channel {prog.bank === 128 ? 10 : 1}, bank {prog.bank & 127}, program {prog.prog + 1} {prog.name.toUpperCase()}.
-          CC74 carries FREQUENCY and CC71 carries RESONANCE. Note length follows DECAY.
-        </p>
       </section>
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
