@@ -7,12 +7,12 @@ Defines the parameter sheet's 1-bit visual language and how its controls (button
 ## Requirements
 
 ### Requirement: Two-color, monospace, square visual language
-Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the SOUND toggle, a 30 px circular button in the top-right corner of the drawing that shows a speaker icon (on) or a muted-speaker icon (off). The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
+Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the two 30 px circular buttons on the drawing: the SOUND toggle in the top-right corner, which shows a speaker icon (on) or a muted-speaker icon (off), and the SETTINGS button in the bottom-right corner, which shows a settings icon. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
 
 #### Scenario: Computed styles stay within the palette
 - **WHEN** the page is rendered and every control is shown in its resting, hover, pressed, focused, open and disabled states
 - **THEN** every computed `color`, `background-color`, `border-color` and `outline-color` is black or white (or one of them at reduced opacity for disabled)
-- **AND** every computed `border-radius` is `0px` except on the SOUND toggle, and every `box-shadow` is `none`
+- **AND** every computed `border-radius` is `0px` except on the SOUND and SETTINGS buttons, and every `box-shadow` is `none`
 
 #### Scenario: Font
 - **WHEN** any label, value, option or button text is rendered
@@ -109,12 +109,27 @@ Every interactive control SHALL show a visible focus indicator when focused by k
 - **WHEN** the user tabs through the parameter sheet
 - **THEN** each button, select, slider and checkbox in turn shows a 1px dashed black outline
 
+### Requirement: Parameter popover
+The parameter rows (WIND, DECAY, FREQUENCY, RESONANCE, ROOT, SCALE, SOUNDFONT) SHALL live in a popover opened by the SETTINGS button, a 30 px circular button in the bottom-right corner of the drawing that shows a settings icon. The popover SHALL be a square white panel with a 1px black border, anchored to the button and kept within the viewport, and it SHALL scroll when it is taller than the space available. The page behind it MUST stay live: the chime keeps animating and sounding. The SETTINGS button SHALL render inverted and report itself expanded while the popover is open. Escape, a tap outside the popover or activating SETTINGS again SHALL close it. Closing MUST NOT change any parameter.
+
+#### Scenario: Opening the popover
+- **WHEN** the user activates SETTINGS
+- **THEN** a panel opens holding the seven parameter rows, and the SETTINGS button renders inverted with an expanded state
+
+#### Scenario: Choosing inside the popover
+- **WHEN** the user picks a SCALE option from the select inside the popover
+- **THEN** the scale changes and the popover stays open
+
+#### Scenario: Closing keeps values
+- **WHEN** the user sets WIND to 0.20, presses Escape, and opens SETTINGS again
+- **THEN** focus returned to SETTINGS on close, and the WIND row reads 0.20
+
 ### Requirement: Accessible names and roles
 Every control SHALL have an accessible name equal to its visible label (for example "WIND", "MIDI OUT", "SEND PROGRAM CHANGE", "TEST NOTE"), and the correct role (button, combobox, slider, checkbox). Sliders SHALL expose their current, minimum and maximum values. The visible labels, button texts and states named by the `midi-output` capability MUST remain the same.
 
 #### Scenario: Roles and names
 - **WHEN** the page's accessibility tree is inspected
-- **THEN** there is a slider named WIND with min 0, max 1 and value 0.45, comboboxes named ROOT, SCALE, SOUNDFONT, MIDI OUT (after connect) and CHANNEL, and checkboxes named for each MIDI option
+- **THEN** there are buttons named SOUND and SETTINGS, and with the settings popover open there is a slider named WIND with min 0, max 1 and value 0.45, comboboxes named ROOT, SCALE, SOUNDFONT, MIDI OUT (after connect) and CHANNEL, and checkboxes named for each MIDI option
 
 #### Scenario: MIDI controls unchanged
 - **WHEN** the MIDI behavior checks from the `midi-output` capability are run using controls by role and name

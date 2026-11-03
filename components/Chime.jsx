@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Settings2, Volume2, VolumeX } from "lucide-react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
@@ -136,7 +137,7 @@ export default function Chime() {
     const fit = () => {
       const avail = (stageRef.current ? stageRef.current.clientWidth : E.W) - 2;
       const maxByH = Math.max(320, window.innerHeight - 110) * E.W / E.H;
-      const w = Math.min(avail, maxByH, E.W * 3);
+      const w = Math.min(avail, maxByH, E.W * 2);
       setCanvasPx(w >= E.W * 2 ? Math.floor(w / E.W) * E.W : w);
     };
     fit();
@@ -232,8 +233,8 @@ export default function Chime() {
   const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
 
   return (
-    <main className="mx-auto grid max-w-[1060px] gap-7 min-[860px]:grid-cols-[minmax(0,480px)_minmax(0,1fr)] min-[860px]:items-start">
-      <section className="grid min-w-0 justify-items-start gap-3 min-[860px]:sticky min-[860px]:top-[max(20px,env(safe-area-inset-top,0px))]" ref={stageRef}>
+    <main className="mx-auto grid w-full max-w-[402px] justify-items-center">
+      <section className="grid w-full min-w-0 justify-items-start gap-3" ref={stageRef}>
         <div className="relative">
           <canvas
             ref={canvasRef}
@@ -244,12 +245,61 @@ export default function Chime() {
             onPointerDown={onCanvasDown}
             aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
           />
-          {/* the one round control and the one icon on the page, by request: a Lucide speaker, drawn without anti-aliasing */}
+          {/* the two round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
           <Button aria-label="SOUND" aria-pressed={sound} onClick={onSound} className="absolute top-2.5 right-2.5 size-[30px] rounded-[50%] p-0">
             {sound
               ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
               : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
           </Button>
+          {/* the parameter rows; their state stays in Chime, so values survive the popover closing */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button aria-label="SETTINGS" className="absolute right-2.5 bottom-2.5 size-[30px] rounded-[50%] p-0 data-[state=open]:bg-foreground data-[state=open]:text-background">
+                <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent aria-label="SETTINGS">
+              <div className="grid gap-3.5">
+                <Param id="p-wind" label="WIND" value={wind.toFixed(2)}>
+                  <ParamSlider id="p-wind" min={0} max={1} step={0.01} value={wind} onChange={setWind} />
+                </Param>
+                <Param id="p-decay" label="DECAY" value={decay.toFixed(1) + " S"}>
+                  <ParamSlider id="p-decay" min={0.3} max={12} step={0.1} value={decay} onChange={setDecay} />
+                </Param>
+                <Param id="p-freq" label="FREQUENCY" value={hz(cutoff)}>
+                  <ParamSlider id="p-freq" min={0} max={1} step={0.001} value={cutX} onChange={setCutX} />
+                </Param>
+                <Param id="p-res" label="RESONANCE" value={"Q " + q.toFixed(1)}>
+                  <ParamSlider id="p-res" min={0.5} max={18} step={0.1} value={q} onChange={setQ} />
+                </Param>
+                <Param id="p-root" label="ROOT" value={E.noteName(root)}>
+                  <ParamSelect id="p-root" value={String(root)} display={rootText(root)} onChange={v => setRoot(+v)}>
+                    {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
+                  </ParamSelect>
+                </Param>
+                <Param id="p-scale" label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
+                  <ParamSelect id="p-scale" value={String(scaleIdx)} display={E.SCALE_LIST[scaleIdx].name} onChange={v => setScaleIdx(+v)}>
+                    {SCALE_GROUPS.map(g => (
+                      <SelectGroup key={g}>
+                        <SelectLabel>{g.toUpperCase()}</SelectLabel>
+                        {E.SCALE_LIST.map((s, i) => s.group === g && <SelectItem key={i} value={String(i)}>{s.name}</SelectItem>)}
+                      </SelectGroup>
+                    ))}
+                  </ParamSelect>
+                </Param>
+                <Param id="p-voice" label="SOUNDFONT" value={voiceTag}>
+                  <ParamSelect id="p-voice" value={voice} display={voiceText} onChange={setVoice}>
+                    {groups.map(g => (
+                      <SelectGroup key={g.label}>
+                        <SelectLabel>{g.label}</SelectLabel>
+                        {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
+                      </SelectGroup>
+                    ))}
+                  </ParamSelect>
+                </Param>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="tubes grid max-w-full grid-cols-6 border border-foreground tabular-nums *:border-l *:py-1 *:text-center *:text-[12px] *:leading-[1.3] *:first:border-l-0 [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
           {scale.map((s, i) => {
@@ -263,47 +313,6 @@ export default function Chime() {
         </div>
       </section>
 
-      <section className="grid max-w-[520px] min-w-0 gap-[22px]">
-        <div className="grid gap-3.5">
-          <Param id="p-wind" label="WIND" value={wind.toFixed(2)}>
-            <ParamSlider id="p-wind" min={0} max={1} step={0.01} value={wind} onChange={setWind} />
-          </Param>
-          <Param id="p-decay" label="DECAY" value={decay.toFixed(1) + " S"}>
-            <ParamSlider id="p-decay" min={0.3} max={12} step={0.1} value={decay} onChange={setDecay} />
-          </Param>
-          <Param id="p-freq" label="FREQUENCY" value={hz(cutoff)}>
-            <ParamSlider id="p-freq" min={0} max={1} step={0.001} value={cutX} onChange={setCutX} />
-          </Param>
-          <Param id="p-res" label="RESONANCE" value={"Q " + q.toFixed(1)}>
-            <ParamSlider id="p-res" min={0.5} max={18} step={0.1} value={q} onChange={setQ} />
-          </Param>
-          <Param id="p-root" label="ROOT" value={E.noteName(root)}>
-            <ParamSelect id="p-root" value={String(root)} display={rootText(root)} onChange={v => setRoot(+v)}>
-              {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
-            </ParamSelect>
-          </Param>
-          <Param id="p-scale" label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-            <ParamSelect id="p-scale" value={String(scaleIdx)} display={E.SCALE_LIST[scaleIdx].name} onChange={v => setScaleIdx(+v)}>
-              {SCALE_GROUPS.map(g => (
-                <SelectGroup key={g}>
-                  <SelectLabel>{g.toUpperCase()}</SelectLabel>
-                  {E.SCALE_LIST.map((s, i) => s.group === g && <SelectItem key={i} value={String(i)}>{s.name}</SelectItem>)}
-                </SelectGroup>
-              ))}
-            </ParamSelect>
-          </Param>
-          <Param id="p-voice" label="SOUNDFONT" value={voiceTag}>
-            <ParamSelect id="p-voice" value={voice} display={voiceText} onChange={setVoice}>
-              {groups.map(g => (
-                <SelectGroup key={g.label}>
-                  <SelectLabel>{g.label}</SelectLabel>
-                  {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
-                </SelectGroup>
-              ))}
-            </ParamSelect>
-          </Param>
-        </div>
-      </section>
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
         <DialogTrigger asChild>
