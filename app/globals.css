@@ -41,9 +41,9 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-courier), "Courier Prime", "Courier New", Courier, monospace;
-  --font-mono: var(--font-courier), "Courier Prime", "Courier New", Courier, monospace;
-  --font-heading: var(--font-courier), "Courier Prime", "Courier New", Courier, monospace;
+  --font-sans: var(--font-ui), "Courier New", Courier, monospace;
+  --font-mono: var(--font-ui), "Courier New", Courier, monospace;
+  --font-heading: var(--font-ui), "Courier New", Courier, monospace;
   --color-background: var(--background);
   --color-card: var(--card);
   --color-popover: var(--popover);
@@ -108,7 +108,7 @@
     padding-block: max(20px, env(safe-area-inset-top, 0px)) calc(76px + env(safe-area-inset-bottom, 0px));
   }
   body {
-    font-size: 15px;
+    font-size: 13px;
     line-height: 1.45;
   }
   :focus-visible {

@@ -16,7 +16,8 @@ A six-tube wind chime simulation. Wind pushes a sail, the sail swings a disc cla
 ## Layout
 
 ```
-app/layout.jsx       Courier Prime via next/font, metadata, viewport
+app/layout.jsx       Knif Mono via next/font/local, metadata, viewport
+app/fonts/           AA_Knif-mono.woff (single weight, 400)
 app/page.jsx         renders <Chime />
 app/globals.css      Tailwind imports, 1-bit theme tokens, base layer, a few component rules (canvas, .lead, .tubes .hit)
 components/Chime.jsx the whole UI (client component): `Chime` (the unit list, storage, the GM font, MIDI state and the MIDI OUT dialog with its fixed button) and `ChimeUnit` (one unit: drawing, round buttons, SETTINGS popover, notes drawer, its engine instance)
@@ -53,9 +54,9 @@ A chime's `chooseVoice(value)`: `"v<i>"` is a built-in voice, `"s<font>:<preset>
 
 ## Constraints and decisions to keep
 
-- **Visual language**: two colors only (pure black lines, white ground), pixelated canvas scaled by whole multiples, Courier Prime for every label. Parameter rows are `LABEL ....... value` with dotted leaders. No color, no rounded corners, no shadows.
+- **Visual language**: two colors only (pure black lines, white ground), pixelated canvas scaled by whole multiples, Knif Mono for every label. Parameter rows are `LABEL ....... value` with dotted leaders. No color, no rounded corners, no shadows.
   - It is enforced through the theme: every shadcn color token in `app/globals.css` is `#000000` or `#ffffff`, `--accent` is black (so highlights invert), `--radius` and every `--radius-*` are 0, the `--shadow-*` namespaces are cleared, and there is no `.dark` block or `dark` variant.
-  - Fonts: next/font exposes Courier Prime as `--font-courier`; `--font-sans`/`--font-mono` point at it. Don't rename it back to `--font-mono`, which would refer to itself in `@theme inline`.
+  - Fonts: `next/font/local` loads Knif Mono from `app/fonts/` as `--font-ui`; `--font-sans`/`--font-mono`/`--font-heading` point at it. To try another face, change the `src` in `app/layout.jsx`. Don't rename the variable to `--font-mono`, which would refer to itself in `@theme inline`. Knif Mono has one weight, so `font-bold`/`<b>` is synthesized by the browser. Sizes: body 13px, labels and headings 11px, note pads 13px names over 10px Hz.
   - Components use text glyphs (`▾`, `▴`, `■`) instead of icons. The exceptions, by request, are the four 30 px round buttons on each unit's canvas, all Lucide icons (`lucide-react`) with `shapeRendering="crispEdges"` so they stay two-color: COPY in the top-left corner (`CopyPlus`, `aria-label="COPY"`, disabled at 16 units), SOUND in the top-right corner (`Volume2`/`VolumeX`, `aria-label="SOUND"`, `aria-pressed`), SETTINGS in the bottom-right corner (`Settings2`, `aria-label="SETTINGS"`, inverted while open), which opens the parameter popover, and NOTES in the bottom-left corner (`EighthNote`, `aria-label="NOTES"`, `aria-pressed`), which shows the tube-note readout. They are also the only rounded elements (`rounded-[50%]`, which the zeroed `--radius-*` tokens don't touch). Don't add other icons or rounded shapes without asking. Focus is `focus-visible:outline-1 outline-dashed outline-foreground outline-offset-3` (no rings, which are box shadows).
   - Adding a component: `pnpm dlx shadcn@4.23.0 add <name>`, then strip `rounded-*`, `shadow-*`, `ring-*`, `dark:*` and lucide icons, and use the dashed focus outline. `lucide-react` is a dependency now (for the four round buttons' icons only); don't use the shadcn CLI's icon imports. The CLI offers to overwrite `button.jsx`: answer no. Overlays get no tint: `dialog.jsx`'s overlay is transparent (it still catches outside clicks), since a grey backdrop would break the two-color rule.
 - **Radix specifics in `Chime.jsx`**:

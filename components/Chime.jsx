@@ -28,7 +28,7 @@ const rootText = m => `${E.noteName(m)}   ${E.mtof(m).toFixed(1)} HZ`;
 const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
 const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
 
-const NOTE = "m-0 max-w-[60ch] text-[13px]";
+const NOTE = "m-0 max-w-[60ch] text-[11px]";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
 const ROUND = "absolute size-[30px] rounded-[50%] p-0";
 
@@ -332,7 +332,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       </div>
       {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
       <div id={`${p}-notes`} hidden={!unit.notes}>
-        <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[12px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[15px]" style={{ width: canvasPx + 2 }}>
+        <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2 }}>
           {scale.map((s, i) => {
             const m = unit.root + s;
             return (
@@ -523,7 +523,7 @@ export default function Chime() {
               </Param>
               {midiReady && (
                 <>
-                  <div className="grid gap-1.5 text-[13px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
+                  <div className="grid gap-1.5 text-[11px] tracking-[.04em] *:flex *:cursor-pointer *:items-center *:gap-2">
                     <label><Checkbox checked={sendProg} onCheckedChange={v => setSendProg(v === true)} /> SEND PROGRAM CHANGE</label>
                     <label><Checkbox checked={sendCC} onCheckedChange={v => setSendCC(v === true)} /> SEND FILTER AS CC74 / CC71</label>
                     <label><Checkbox checked={localSound} onCheckedChange={v => setLocalSound(v === true)} /> PLAY SOUND IN BROWSER TOO</label>
