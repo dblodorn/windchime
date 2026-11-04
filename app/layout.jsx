@@ -1,7 +1,7 @@
-import { Courier_Prime } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const mono = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"], variable: "--font-courier", display: "swap" });
+const mono = localFont({ src: "./fonts/AA_Knif-mono.woff", weight: "400", variable: "--font-ui", display: "swap" });
 
 export const metadata = {
   title: "Chime",

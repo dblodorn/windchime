@@ -93,7 +93,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn("px-2 pt-2 pb-0.5 text-[13px] font-bold uppercase tracking-[.06em]", className)}
+      className={cn("px-2 pt-2 pb-0.5 text-[11px] font-bold uppercase tracking-[.06em]", className)}
       {...props}
     />
   )

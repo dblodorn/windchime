@@ -7,7 +7,7 @@ Defines the parameter sheet's 1-bit visual language and how its controls (button
 ## Requirements
 
 ### Requirement: Two-color, monospace, square visual language
-Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the three 30 px circular buttons on the drawing: the SOUND toggle in the top-right corner, which shows a speaker icon (on) or a muted-speaker icon (off), the SETTINGS button in the bottom-right corner, which shows a settings icon, and the NOTES toggle in the bottom-left corner, which shows an eighth-note icon. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
+Every element of the page SHALL render using only pure black (`#000000`) and pure white (`#ffffff`) for text, backgrounds, borders, outlines and icons. All control states and popups are included. Disabled controls MAY use reduced opacity of those two colors. All text SHALL use Knif Mono, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the three 30 px circular buttons on the drawing: the SOUND toggle in the top-right corner, which shows a speaker icon (on) or a muted-speaker icon (off), the SETTINGS button in the bottom-right corner, which shows a settings icon, and the NOTES toggle in the bottom-left corner, which shows an eighth-note icon. The page SHALL use a light color scheme only, regardless of the operating system's dark-mode setting.
 
 #### Scenario: Computed styles stay within the palette
 - **WHEN** the page is rendered and every control is shown in its resting, hover, pressed, focused, open and disabled states
@@ -16,7 +16,7 @@ Every element of the page SHALL render using only pure black (`#000000`) and pur
 
 #### Scenario: Font
 - **WHEN** any label, value, option or button text is rendered
-- **THEN** its computed font family starts with the Courier Prime face loaded by the page
+- **THEN** its computed font family starts with the Knif Mono face loaded by the page
 
 #### Scenario: Dark mode preference ignored
 - **WHEN** the operating system prefers a dark color scheme

@@ -89,7 +89,7 @@ Closing the dialog SHALL only hide the controls. MIDI access, the selected port,
 - **THEN** the dialog shows the same port and channel 5, and CONNECT MIDI is not shown
 
 ### Requirement: Dialog look
-The dialog SHALL follow the page's visual language: white background, a 1px solid black border, square corners, no shadow, Courier Prime text, and its title in uppercase. Behind the dialog, the page MUST stay visible in black and white only, with no grey or tinted overlay. The dialog MUST fit within a 375 px wide viewport inside the page padding, and when its contents are taller than the viewport it SHALL scroll inside itself.
+The dialog SHALL follow the page's visual language: white background, a 1px solid black border, square corners, no shadow, Knif Mono text, and its title in uppercase. Behind the dialog, the page MUST stay visible in black and white only, with no grey or tinted overlay. The dialog MUST fit within a 375 px wide viewport inside the page padding, and when its contents are taller than the viewport it SHALL scroll inside itself.
 
 #### Scenario: Two colors with the dialog open
 - **WHEN** the dialog is open and connected, with every control shown
