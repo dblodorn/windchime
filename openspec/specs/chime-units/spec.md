@@ -70,11 +70,15 @@ Each unit's settings popover SHALL end with a REMOVE button while more than one 
 - **THEN** no REMOVE button is shown
 
 ### Requirement: Units saved across visits
-The system SHALL save every unit in browser storage: its parameters (including TUBES and MIDI MODE), NOTES state, MIDI channel, position and stacking order. It SHALL save after each change and restore all units on load. Each restored unit SHALL be pulled back inside the viewport if the window is now smaller. SOUND is not restored: every unit starts muted on load, because browser sound MUST start only from a tap on a SOUND button. Data saved before this change SHALL be carried over: a saved position and MIDI channel become CHIME 1's, and a saved unit with no tube count loads with 6 tubes, and one with no MIDI MODE (or an unknown one) loads as POLY. A saved tube count outside 2 to 8, or not a whole number, SHALL be brought to the nearest whole number in that range.
+The system SHALL save every unit in browser storage: its parameters (including TUBES and MIDI MODE), NOTES state, MIDI channel, position and stacking order. It SHALL save after each change and restore all units on load, except when the page is opened from a readable share link, whose units SHALL load instead and replace the saved ones. Each restored unit SHALL be pulled back inside the viewport if the window is now smaller. SOUND is not restored: every unit starts muted on load, because browser sound MUST start only from a tap on a SOUND button. Data saved before this change SHALL be carried over: a saved position and MIDI channel become CHIME 1's, and a saved unit with no tube count loads with 6 tubes, and one with no MIDI MODE (or an unknown one) loads as POLY. A saved tube count outside 2 to 8, or not a whole number, SHALL be brought to the nearest whole number in that range.
 
 #### Scenario: Reload restores units
 - **WHEN** three units exist with different scales, tube counts, channels and positions, and the user reloads the page
 - **THEN** the same three units appear with the same scales, tube counts, channels and positions, in the same stacking order
+
+#### Scenario: Share link takes precedence
+- **WHEN** units are saved and the page is opened from a share link
+- **THEN** the linked units appear instead of the saved ones, and are saved in their place
 
 #### Scenario: Units load muted
 - **WHEN** a unit had SOUND on and the page is reloaded
