@@ -7,6 +7,8 @@ import { Slider as SliderPrimitive } from "radix-ui"
 // 1-bit theme: 1px black track, 9x17 black block thumb. The thumb carries role="slider",
 // so aria-label / aria-labelledby are passed to it rather than the root.
 const THUMB_W = 9
+// Radix keeps the thumb inside the track by half its width, so a value's center sits here
+const thumbLeft = pct => `calc(${pct}% + ${(THUMB_W / 2) * (1 - pct / 50)}px)`
 
 function Slider({
   className,
@@ -14,6 +16,8 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  step = 1,
+  ticks = false,
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledby,
   ...props
@@ -39,6 +43,7 @@ function Slider({
       value={value}
       min={min}
       max={max}
+      step={step}
       className={cn(
         "relative flex h-[22px] w-full touch-none items-center select-none data-disabled:opacity-40",
         className
@@ -62,10 +67,20 @@ function Slider({
             aria-hidden
             data-slot="slider-thumb-placeholder"
             className="pointer-events-none absolute top-1/2 block h-[17px] w-[9px] -translate-x-1/2 -translate-y-1/2 bg-foreground"
-            style={{ left: `calc(${pct}% + ${(THUMB_W / 2) * (1 - pct / 50)}px)` }}
+            style={{ left: thumbLeft(pct) }}
           />
         )
       })}
+      {/* a stepped slider: a 1px tick under the track at every value the thumb can rest on */}
+      {ticks && Array.from({ length: Math.round((max - min) / step) + 1 }, (_, k) => (
+        <span
+          key={`tick-${k}`}
+          aria-hidden
+          data-slot="slider-tick"
+          className="pointer-events-none absolute top-1/2 mt-[10px] block h-[3px] w-px -translate-x-1/2 bg-foreground"
+          style={{ left: thumbLeft((k * step / (max - min)) * 100) }}
+        />
+      ))}
       {Array.from({ length: _values.length }, (_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the SCALE menu's catalog of tunings for the six tubes: how scales are grouped and ordered, which one is the default, how a scale's intervals become six tube pitches, and the contents of the Korean group.
+Defines the SCALE menu's catalog of tunings for a chime's tubes (2 to 8 of them): how scales are grouped and ordered, which one is the default, how a scale's intervals become one pitch per tube, and the contents of the Korean group.
 
 ## Requirements
 

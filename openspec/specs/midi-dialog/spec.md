@@ -43,11 +43,11 @@ While a MIDI output port is selected and connected, the MIDI button SHALL show i
 - **AND** when a port with the same name connects again, it inverts again
 
 ### Requirement: MIDI dialog holds the MIDI OUT controls
-Activating the MIDI button SHALL open a modal dialog titled MIDI OUT. The dialog SHALL contain every MIDI OUT control and message, with the same labels, behavior and order as before: CONNECT MIDI (or, once connected, the MIDI OUT port select), CHANNEL, SEND PROGRAM CHANGE, SEND FILTER AS CC74 / CC71, PLAY SOUND IN BROWSER TOO, TEST NOTE, PANIC, and the messages for an unsupported browser, blocked or failed access, and no outputs. These controls MUST NOT also appear on the parameter sheet. The dialog's accessible name SHALL be "MIDI OUT". Opening the dialog MUST NOT request MIDI access by itself; access is still requested only when CONNECT MIDI is activated.
+Activating the MIDI button SHALL open a modal dialog titled MIDI OUT. The dialog SHALL contain the MIDI controls shared by every unit, with the same labels, behavior and order as before: CONNECT MIDI (or, once connected, the MIDI OUT port select), SEND PROGRAM CHANGE, SEND FILTER AS CC74 / CC71, PLAY SOUND IN BROWSER TOO, TEST NOTE, PANIC, and the messages for an unsupported browser, blocked or failed access, and no outputs. The per-unit CHANNEL select is not in the dialog; it is in each unit's settings popover. These controls MUST NOT also appear outside the dialog. The dialog's accessible name SHALL be "MIDI OUT". Opening the dialog MUST NOT request MIDI access by itself; access is still requested only when CONNECT MIDI is activated.
 
 #### Scenario: Sheet without MIDI controls
 - **WHEN** the page loads with the dialog closed
-- **THEN** no CONNECT MIDI button, MIDI OUT select, CHANNEL select, MIDI checkbox, TEST NOTE or PANIC control is visible on the page
+- **THEN** no CONNECT MIDI button, MIDI OUT select, MIDI checkbox, TEST NOTE or PANIC control is visible on the page
 
 #### Scenario: Open the dialog
 - **WHEN** the user activates the MIDI button
@@ -59,7 +59,7 @@ Activating the MIDI button SHALL open a modal dialog titled MIDI OUT. The dialog
 
 #### Scenario: Controls after connecting
 - **WHEN** the user activates CONNECT MIDI in the dialog and access is granted
-- **THEN** the dialog shows the MIDI OUT port select, CHANNEL, the three checkboxes, TEST NOTE and PANIC, and they behave as specified for MIDI output
+- **THEN** the dialog shows the MIDI OUT port select, the three checkboxes, TEST NOTE and PANIC, and no CHANNEL select, and they behave as specified for MIDI output
 
 ### Requirement: Modal behavior and closing
 While the dialog is open, keyboard focus SHALL move into it and stay inside it, and the page behind MUST NOT scroll or respond to pointer input. A select opened inside the dialog SHALL show its options above the dialog. The dialog SHALL close when the user activates its CLOSE button, presses Escape, or taps or clicks outside it. When it closes, focus SHALL return to the MIDI button.
@@ -73,20 +73,20 @@ While the dialog is open, keyboard focus SHALL move into it and stay inside it, 
 - **THEN** the dialog closes and focus is on the MIDI button
 
 #### Scenario: Select inside the dialog
-- **WHEN** the user opens the CHANNEL select inside the dialog
+- **WHEN** the user opens the MIDI OUT select inside the dialog
 - **THEN** its option list is shown on top of the dialog and an option can be chosen
 - **AND** choosing an option closes the list but leaves the dialog open
 
 ### Requirement: Closing leaves MIDI running
-Closing the dialog SHALL only hide the controls. MIDI access, the selected port, the channel and the options MUST stay as they were, and strikes MUST keep sending notes to the selected port while the dialog is closed. Reopening the dialog SHALL show the current state, without asking to connect again.
+Closing the dialog SHALL only hide the controls. MIDI access, the selected port and the options MUST stay as they were, and strikes on every unit MUST keep sending notes to the selected port while the dialog is closed. Reopening the dialog SHALL show the current state, without asking to connect again.
 
 #### Scenario: Notes while closed
-- **WHEN** a port is selected, the dialog is closed, and the user taps a tube
-- **THEN** a note-on for that tube is sent on the chosen port and channel
+- **WHEN** a port is selected, the dialog is closed, and the user taps a tube on a unit on channel 2
+- **THEN** a note-on for that tube is sent on the chosen port on channel 2
 
 #### Scenario: Reopen keeps state
-- **WHEN** the user connects, picks a port and channel 5, closes the dialog and opens it again
-- **THEN** the dialog shows the same port and channel 5, and CONNECT MIDI is not shown
+- **WHEN** the user connects, picks a port, turns SEND PROGRAM CHANGE off, closes the dialog and opens it again
+- **THEN** the dialog shows the same port with SEND PROGRAM CHANGE off, and CONNECT MIDI is not shown
 
 ### Requirement: Dialog look
 The dialog SHALL follow the page's visual language: white background, a 1px solid black border, square corners, no shadow, Knif Mono text, and its title in uppercase. Behind the dialog, the page MUST stay visible in black and white only, with no grey or tinted overlay. The dialog MUST fit within a 375 px wide viewport inside the page padding, and when its contents are taller than the viewport it SHALL scroll inside itself.
