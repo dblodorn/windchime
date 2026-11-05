@@ -444,23 +444,25 @@ export default function Chime() {
 
   // bundled General MIDI soundfont
   useEffect(() => {
+    // only the font's tables load now (about 205 KB); a preset's samples load when a unit sounds with it.
+    // Leaving the page cancels the downloads, which is not an error.
     let dead = false;
+    const ctl = new AbortController(), leave = () => ctl.abort();
+    window.addEventListener("pagehide", leave);
     (async () => {
       try {
-        const res = await fetch("/TimGM6mb.sf2");
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const ab = await res.arrayBuffer();
-        if (dead || E.fonts.some(f => f.gm)) return;
-        E.addFont(ab, "TimGM6mb", true);
+        if (E.fonts.some(f => f.gm)) return;
+        await E.loadFont("/TimGM6mb.sf2", "TimGM6mb", { signal: ctl.signal });
+        if (dead) return;
         // a stored voice the font doesn't have goes back to the default (tubular bells)
         setUnits(us => us.map(u => (u.voice && !voiceExists(u.voice) ? { ...u, voice: null } : u)));
         setFontsVersion(n => n + 1);
       } catch (err) {
         // the built-in synth voices still work without it
-        if (!dead) console.error("General MIDI soundfont did not load", err);
+        if (!dead && !ctl.signal.aborted) console.error("General MIDI soundfont did not load", err);
       }
     })();
-    return () => { dead = true; };
+    return () => { dead = true; window.removeEventListener("pagehide", leave); ctl.abort(); };
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const groups = useMemo(() => voiceGroups(), [fontsVersion]);
