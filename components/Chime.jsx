@@ -98,9 +98,10 @@ const defaultVoice = () => (E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v
 // A unit is plain data; SOUND is kept for the visit only and never stored (browser audio starts only from a tap).
 const newId = () => "u" + Math.random().toString(36).slice(2, 10);
 const defaultUnit = (id = "u1") => ({
-  id, volume: 1, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: E.SCALE_LIST[0].name, voice: null,
-  channel: 1, notes: false, sound: false, x: 0, y: 0, z: 1,
+  id, volume: 1, tubes: 6, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: E.SCALE_LIST[0].name, voice: null,
+  channel: 1, midiMode: "poly", notes: false, sound: false, x: 0, y: 0, z: 1,
 });
+const TUBE_WORDS = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight" };
 const clampNum = (v, lo, hi, d) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 // Stored records are checked field by field: anything unknown or out of range falls back to the default.
 function readUnit(raw, seen) {
@@ -110,11 +111,11 @@ function readUnit(raw, seen) {
   seen.add(id);
   return {
     id,
-    volume: clampNum(r.volume, 0, 1, d.volume), wind: clampNum(r.wind, 0, 1, d.wind), decay: clampNum(r.decay, 0.3, 12, d.decay),
+    volume: clampNum(r.volume, 0, 1, d.volume), tubes: Math.round(clampNum(r.tubes, E.MIN_TUBES, E.MAX_TUBES, d.tubes)), wind: clampNum(r.wind, 0, 1, d.wind), decay: clampNum(r.decay, 0.3, 12, d.decay),
     cutX: clampNum(r.cutX, 0, 1, d.cutX), q: clampNum(r.q, 0.5, 18, d.q), root: Math.round(clampNum(r.root, 48, 84, d.root)),
     scale: SCALE_BY_NAME[r.scale] ? r.scale : d.scale,
     voice: typeof r.voice === "string" && /^(v\d+|s\d+:\d+)$/.test(r.voice) ? r.voice : null,
-    channel: Math.round(clampNum(r.channel, 1, 16, d.channel)), notes: r.notes === true, sound: false,
+    channel: Math.round(clampNum(r.channel, 1, 16, d.channel)), midiMode: r.midiMode === "mono" ? "mono" : "poly", notes: r.notes === true, sound: false,
     x: Math.round(clampNum(r.x, -1e5, 1e5, 0)), y: Math.round(clampNum(r.y, -1e5, 1e5, 0)), z: Math.round(clampNum(r.z, 1, 1e6, 1)),
   };
 }
@@ -147,16 +148,18 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const chime = chimeRef.current;
   const set = useCallback(patch => onChange(id, patch), [id, onChange]);
 
-  const scale = useMemo(() => E.sixOf(SCALE_BY_NAME[unit.scale].deg), [unit.scale]);
+  const scale = useMemo(() => E.tubeNotes(SCALE_BY_NAME[unit.scale].deg, unit.tubes), [unit.scale, unit.tubes]);
   const cutoff = E.cutoffHz(unit.cutX);
   const voice = unit.voice || defaultVoice();
   const channelRef = useRef(unit.channel);
+  const monoRef = useRef(false);
+  monoRef.current = unit.midiMode === "mono";
   const decayRef = useRef(unit.decay);
   decayRef.current = unit.decay;
 
   // push parameters into the engine
-  useEffect(() => { chime.setParams({ volume: unit.volume, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
-    [chime, unit.volume, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
+  useEffect(() => { chime.setParams({ volume: unit.volume, tubes: unit.tubes, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
+    [chime, unit.volume, unit.tubes, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const prog = useMemo(() => { chime.chooseVoice(voice); return chime.midiProgram(); }, [chime, voice, fontsVersion]);
   useEffect(() => { chime.setSound(unit.sound); }, [chime, unit.sound]);
@@ -167,15 +170,16 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
     return () => { detach(); chime.destroy(); };
   }, [chime]);
 
-  // flash the tube cell on every strike, and send it to the MIDI port on this unit's channel
+  // flash the tube cell on every strike, and send it to the MIDI port on this unit's channel, tagged with its tube
+  // (in POLY a key sounding from another tube stacks; in MONO it is ended first)
   useEffect(() => chime.onHit((i, vel) => {
-    if (M.currentOutput()) M.note(channelRef.current, chime.noteOf(i), vel, decayRef.current);
+    if (M.currentOutput()) M.note(channelRef.current, chime.noteOf(i), vel, decayRef.current, `${id}:${i}`, monoRef.current);
     const el = cellRefs.current[i];
     if (!el) return;
     el.classList.add("hit");
     clearTimeout(el._t);
     el._t = setTimeout(() => el.classList.remove("hit"), 140);
-  }), [chime]);
+  }), [chime, id]);
 
   // MIDI: a channel change ends this channel's sounding notes first; program change and CCs follow the unit's
   // voice, filter and channel, and are resent whenever a port becomes live (linkSeq) or the unit is created
@@ -257,7 +261,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
           className="box-content touch-none border border-foreground"
           style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
           onPointerDown={onCanvasDown}
-          aria-label="Wind chime: six tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it."
+          aria-label={`Wind chime: ${TUBE_WORDS[unit.tubes]} tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it.`}
         />
         {/* the four round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
         <Button aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className={`${ROUND} top-2.5 left-2.5`}>
@@ -282,6 +286,9 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             <div className="grid gap-3.5">
               <Param id={`${p}-p-volume`} label="VOLUME" value={unit.volume.toFixed(2)}>
                 <ParamSlider id={`${p}-p-volume`} min={0} max={1} step={0.01} value={unit.volume} onChange={v => set({ volume: v })} />
+              </Param>
+              <Param id={`${p}-p-tubes`} label="TUBES" value={String(unit.tubes)}>
+                <ParamSlider id={`${p}-p-tubes`} min={E.MIN_TUBES} max={E.MAX_TUBES} step={1} ticks value={unit.tubes} onChange={v => set({ tubes: v })} />
               </Param>
               <Param id={`${p}-p-wind`} label="WIND" value={unit.wind.toFixed(2)}>
                 <ParamSlider id={`${p}-p-wind`} min={0} max={1} step={0.01} value={unit.wind} onChange={v => set({ wind: v })} />
@@ -325,6 +332,12 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                   {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
                 </ParamSelect>
               </Param>
+              <Param id={`${p}-p-mode`} label="MIDI MODE" value={unit.midiMode.toUpperCase()}>
+                <ParamSelect id={`${p}-p-mode`} value={unit.midiMode} display={unit.midiMode.toUpperCase()} onChange={v => set({ midiMode: v })}>
+                  <SelectItem value="poly">POLY</SelectItem>
+                  <SelectItem value="mono">MONO</SelectItem>
+                </ParamSelect>
+              </Param>
               {count > 1 && <div className={ROW}><Button onClick={() => onRemove(id)}>REMOVE</Button></div>}
             </div>
           </PopoverContent>
@@ -332,7 +345,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       </div>
       {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
       <div id={`${p}-notes`} hidden={!unit.notes}>
-        <div role="group" aria-label="TUBES" className="tubes grid max-w-full grid-cols-6 border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2 }}>
+        <div role="group" aria-label="TUBES" className="tubes grid max-w-full border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${unit.tubes}, minmax(0, 1fr))` }}>
           {scale.map((s, i) => {
             const m = unit.root + s;
             return (
@@ -466,7 +479,7 @@ export default function Chime() {
   // program change and CCs follow from each unit's linkSeq effects
   const choosePort = id => { M.selectOutput(id); };
   // one test note per unit: its first tube, on its channel
-  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + E.sixOf(SCALE_BY_NAME[u.scale].deg)[0])); };
+  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0])); };
   const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
