@@ -5,6 +5,7 @@ import { CopyPlus, EighthNote, Settings2, Volume2, VolumeX } from "lucide-react"
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
+import * as Sh from "../lib/share";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,7 +18,7 @@ const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
 const SCALE_BY_NAME = Object.fromEntries(E.SCALE_LIST.map(s => [s.name, s]));
 const CHANNELS = Array.from({ length: 16 }, (_, k) => k + 1);
-const MAX_UNITS = 16;
+const MAX_UNITS = Sh.MAX_UNITS;
 const store = {
   get(k, d) { try { const v = localStorage.getItem("windchime." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
@@ -97,27 +98,23 @@ const defaultVoice = () => (E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v
 // ---------- units ----------
 // A unit is plain data; SOUND is kept for the visit only and never stored (browser audio starts only from a tap).
 const newId = () => "u" + Math.random().toString(36).slice(2, 10);
-const defaultUnit = (id = "u1") => ({
-  id, volume: 1, tubes: 6, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: E.SCALE_LIST[0].name, voice: null,
-  channel: 1, midiMode: "poly", notes: false, sound: false, x: 0, y: 0, z: 1,
-});
+const defaultUnit = (id = "u1") => ({ id, ...Sh.DEFAULTS });
 const TUBE_WORDS = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight" };
-const clampNum = (v, lo, hi, d) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
-// Stored records are checked field by field: anything unknown or out of range falls back to the default.
+// Stored and linked records are checked field by field (Sh.UnitSchema): anything unknown or out of range falls back
+// to the default. Ids are checked here.
 function readUnit(raw, seen) {
-  const d = defaultUnit(), r = raw && typeof raw === "object" ? raw : {};
+  const r = raw && typeof raw === "object" ? raw : {};
   let id = typeof r.id === "string" && /^u[\w-]{1,24}$/.test(r.id) ? r.id : newId();
   if (seen.has(id)) id = newId();
   seen.add(id);
-  return {
-    id,
-    volume: clampNum(r.volume, 0, 1, d.volume), tubes: Math.round(clampNum(r.tubes, E.MIN_TUBES, E.MAX_TUBES, d.tubes)), wind: clampNum(r.wind, 0, 1, d.wind), decay: clampNum(r.decay, 0.3, 12, d.decay),
-    cutX: clampNum(r.cutX, 0, 1, d.cutX), q: clampNum(r.q, 0.5, 18, d.q), root: Math.round(clampNum(r.root, 48, 84, d.root)),
-    scale: SCALE_BY_NAME[r.scale] ? r.scale : d.scale,
-    voice: typeof r.voice === "string" && /^(v\d+|s\d+:\d+)$/.test(r.voice) ? r.voice : null,
-    channel: Math.round(clampNum(r.channel, 1, 16, d.channel)), midiMode: r.midiMode === "mono" ? "mono" : "poly", notes: r.notes === true, sound: false,
-    x: Math.round(clampNum(r.x, -1e5, 1e5, 0)), y: Math.round(clampNum(r.y, -1e5, 1e5, 0)), z: Math.round(clampNum(r.z, 1, 1e6, 1)),
-  };
+  return { id, ...Sh.UnitSchema.parse(r) };
+}
+// A composition from a share link in the fragment ("#c=..."), with fresh ids, or null when there is none.
+function linkedUnits(hash) {
+  const code = Sh.codeFromHash(hash), units = code && Sh.decode(code);
+  if (!units) return null;
+  const seen = new Set();
+  return units.map(r => readUnit(r, seen));
 }
 function loadUnits() {
   const saved = store.get("units", null);
@@ -367,6 +364,8 @@ export default function Chime() {
   // the server renders one default unit; the stored list replaces it on mount
   const [units, setUnits] = useState(() => [defaultUnit()]);
   const loaded = useRef(false);
+  const ownHash = useRef(null);
+  const [shared, setShared] = useState(false);
   const [fontsVersion, setFontsVersion] = useState(0);
 
   // MIDI out
@@ -383,8 +382,26 @@ export default function Chime() {
   // fetch the audio library in the background; restore the units
   useEffect(() => {
     E.preloadAudio();
-    setUnits(loadUnits());
+    // a share link replaces the saved units (the save effect writes it over them); the fragment then goes, so a
+    // reload shows the composition as edited since. A fragment that isn't a composition is dropped too.
+    const fromLink = () => {
+      if (!location.hash) return null;
+      const us = linkedUnits(location.hash);
+      history.replaceState(null, "", location.pathname + location.search);
+      return us;
+    };
+    setUnits(fromLink() || loadUnits());
     loaded.current = true;
+    // a link pasted into an open tab
+    const onHash = () => {
+      if (location.hash === ownHash.current) return; // SHARE's own fallback, not a link to open
+      const us = fromLink();
+      if (!us) return;
+      unitsRef.current.forEach(u => M.endNotes(u.channel));
+      setUnits(us);
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
   // save the units (without SOUND) a moment after the last change, and right away when the page goes away;
   // the single-unit keys go once they're carried over
@@ -483,6 +500,20 @@ export default function Chime() {
   const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
+  const shareTimer = useRef(0);
+  useEffect(() => () => clearTimeout(shareTimer.current), []);
+  const onShare = async () => {
+    const hash = "#c=" + Sh.encode(unitsRef.current);
+    const url = location.origin + location.pathname + hash;
+    const done = () => { setShared(true); clearTimeout(shareTimer.current); shareTimer.current = setTimeout(() => setShared(false), 1500); };
+    try { await navigator.clipboard.writeText(url); done(); return; } catch (e) { /* blocked or missing */ }
+    if (typeof navigator.share === "function") {
+      try { await navigator.share({ url }); } catch (e) { /* dismissed */ }
+      return;
+    }
+    ownHash.current = hash;
+    location.hash = hash;
+  };
   const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
   const livePort = midi.port && midiPorts.find(p => p.id === midi.port.id);
@@ -499,13 +530,22 @@ export default function Chime() {
         ))}
       </div>
 
+      {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
+          that leaves the link in the address bar */}
+      <Button
+        className="fixed right-[calc(16px+84px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
+        onClick={onShare}
+      >
+        {shared ? "COPIED" : "SHARE"}
+      </Button>
+
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
         <DialogTrigger asChild>
           <Button
             aria-label="MIDI"
             data-live={midiLive || undefined}
-            className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 px-2.5 data-[live]:bg-foreground data-[live]:text-background"
+            className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5 data-[live]:bg-foreground data-[live]:text-background"
           >
             <MidiLogo className="h-[18px] w-12" />
           </Button>
