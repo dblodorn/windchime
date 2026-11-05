@@ -5,3 +5,7 @@ out
 .env*
 *.log
 .DS_Store
+# generated Relay artifacts (pnpm relay): operations and the
+# persisted-operation allowlist app/api/graphql reads
+__generated__/
+/lib/server/persisted-operations.json
