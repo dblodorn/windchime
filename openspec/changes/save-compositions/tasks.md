@@ -5,8 +5,8 @@
 
 ## 2. Wait for the API
 
-- [ ] 2.1 dmbk-graphql-api `chime-compositions` is deployed, `chime_compositions` exists in production, and a `windchime` key is issued
-- [ ] 2.2 `DMBK_GRAPHQL_API_KEY` is set in Vercel (Production and Preview) by the user
+- [x] 2.1 dmbk-graphql-api `chime-compositions` is deployed, `chime_compositions` exists in production, and a `windchime` key is issued
+- [x] 2.2 `DMBK_GRAPHQL_API_KEY` is set in Vercel (Production and Preview) by the user
 
 ## 3. Relay toolchain
 
@@ -52,7 +52,7 @@
   - MENU/SHARE/MIDI order and spacing.
 - [x] 7.2 Route checks against `pnpm start`: query text, an unknown id, GET and a cross-origin POST are each refused with no upstream call. The API key appears in no client bundle (`grep` over `.next/static`)
 - [x] 7.3 Existing `pw/share.cjs`, `pw/ui.cjs` and `pw/sfui.cjs` still pass
-- [ ] 7.4 Manual end-to-end against the real API from a Vercel preview: save, see it listed, load it in another browser
+- [x] 7.4 End-to-end against the real API (local `pnpm start` with the production key; the preview sits behind Vercel login): save, see it listed, load it in another browser
 
 ## 8. Docs
 

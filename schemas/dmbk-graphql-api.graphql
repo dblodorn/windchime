@@ -1,10 +1,22 @@
+"""
+Indicates exactly one field must be supplied and this field must not be `null`.
+"""
+directive @oneOf on INPUT_OBJECT
+
+"""Exposes a URL that specifies the behavior of this scalar."""
+directive @specifiedBy(
+  """The URL that specifies the behavior of this scalar."""
+  url: String!
+) on SCALAR
+
 """A public or closed Are.na channel."""
 type ArenaChannel {
   blockCount: Int
   id: Int!
 
   """
-  The channel's image blocks, in the owner's order. One Are.na page per request, so a page can hold fewer than `first`; follow `hasNextPage`.
+  The channel's image blocks, in the owner's order. One Are.na page per request,
+  so a page can hold fewer than `first`; follow `hasNextPage`.
   """
   images(after: String, before: String, first: Int, last: Int): ArenaChannelImagesConnection!
   owner: ArenaChannelOwner!
@@ -593,7 +605,9 @@ type Mutation {
   dmbkPhotosUpdatePhoto(input: DmbkPhotosUpdatePhotoInput!): DmbkPhotosUpdatePhotoPayload!
 
   """
-  Save a composition anonymously, with a title the API generates. Identical units return the stored composition with `created: false`. Rate-limited per visitor (`X-End-User-IP`) and per client.
+  Save a composition anonymously, with a title the API generates. Identical
+  units return the stored composition with `created: false`. Rate-limited per
+  visitor (`X-End-User-IP`) and per client.
   """
   dmbkSoundSaveChimeComposition(input: DmbkSoundSaveChimeCompositionInput!): DmbkSoundSaveChimeCompositionPayload!
   dmbkSoundSetChimeCompositionHidden(input: DmbkSoundSetChimeCompositionHiddenInput!): DmbkSoundSetChimeCompositionHiddenPayload!
@@ -855,3 +869,4 @@ enum Visibility {
   HIDDEN
   VISIBLE
 }
+
