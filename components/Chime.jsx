@@ -1,7 +1,8 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CopyPlus, EighthNote, Settings2, Volume2, VolumeX } from "lucide-react";
+import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
+import dynamic from "next/dynamic";
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as M from "../lib/midiout";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
@@ -109,13 +111,21 @@ function readUnit(raw, seen) {
   seen.add(id);
   return { id, ...Sh.UnitSchema.parse(r) };
 }
-// A composition from a share link in the fragment ("#c=..."), with fresh ids, or null when there is none.
+// Checked unit records (from a link or a saved composition) as page units, with fresh ids.
+function freshUnits(records) {
+  const seen = new Set();
+  return records.map(r => readUnit(r, seen));
+}
+// A composition from a share link in the fragment ("#c=..."), or null when there is none.
 function linkedUnits(hash) {
   const code = Sh.codeFromHash(hash), units = code && Sh.decode(code);
-  if (!units) return null;
-  const seen = new Set();
-  return units.map(r => readUnit(r, seen));
+  return units ? freshUnits(units) : null;
 }
+// The COMPOSITIONS panel's content, with Relay; nothing of it loads until MENU is first pressed.
+const Compositions = dynamic(() => import("./Compositions"), {
+  ssr: false,
+  loading: () => <p className="m-0 text-[11px] tracking-[.08em] uppercase">LOADING…</p>,
+});
 function loadUnits() {
   const saved = store.get("units", null);
   if (saved && Array.isArray(saved.units) && saved.units.length) {
@@ -378,6 +388,9 @@ export default function Chime() {
   const [localSound, setLocalSound] = useState(true);
   const [midiMsg, setMidiMsg] = useState("");
   const [midiOpen, setMidiOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpenings, setMenuOpenings] = useState(0);
+  const onMenuOpenChange = useCallback(open => { setMenuOpen(open); if (open) setMenuOpenings(n => n + 1); }, []);
 
   // fetch the audio library in the background; restore the units
   useEffect(() => {
@@ -396,9 +409,7 @@ export default function Chime() {
     const onHash = () => {
       if (location.hash === ownHash.current) return; // SHARE's own fallback, not a link to open
       const us = fromLink();
-      if (!us) return;
-      unitsRef.current.forEach(u => M.endNotes(u.channel));
-      setUnits(us);
+      if (us) replaceComposition(us);
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -417,6 +428,15 @@ export default function Chime() {
     window.addEventListener("pagehide", save);
     return () => { clearTimeout(t); window.removeEventListener("pagehide", save); };
   }, [units, save]);
+
+  // a link or a saved composition replaces every unit: the old units' MIDI notes end, the new ones start muted
+  // (SOUND is never carried), and the save effect writes them over the stored units
+  const replaceComposition = useCallback(us => {
+    unitsRef.current.forEach(u => M.endNotes(u.channel));
+    setUnits(us);
+  }, []);
+  const openSaved = useCallback(records => { replaceComposition(freshUnits(records)); setMenuOpen(false); }, [replaceComposition]);
+  const getUnits = useCallback(() => unitsRef.current, []);
 
   const change = useCallback((id, patch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
   // a copy takes the source's state, the lowest free channel, sits 24 px right and down, and goes on top
@@ -531,6 +551,26 @@ export default function Chime() {
             midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={front} />
         ))}
       </div>
+
+      {/* MENU opens the COMPOSITIONS panel: SAVE and the public list of saved compositions. The one icon outside the
+          units' round buttons, by request; square like SHARE and MIDI. */}
+      <Sheet open={menuOpen} onOpenChange={onMenuOpenChange}>
+        <SheetTrigger asChild>
+          <Button
+            aria-label="MENU"
+            className="fixed right-[calc(16px+168px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-11 p-0"
+          >
+            <Menu size={20} aria-hidden="true" shapeRendering="crispEdges" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent aria-describedby={undefined}>
+          <SheetHeader>
+            <SheetTitle>COMPOSITIONS</SheetTitle>
+            <SheetClose asChild><Button className="h-8 px-2.5">CLOSE</Button></SheetClose>
+          </SheetHeader>
+          <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
+        </SheetContent>
+      </Sheet>
 
       {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
           that leaves the link in the address bar */}
