@@ -61,7 +61,6 @@ const SaveMutation = graphql`
   }
 `;
 
-const chimes = n => (n === 1 ? "1 CHIME" : `${n} CHIMES`);
 const Line = ({ children }) => <p className="m-0 text-[11px] tracking-[.08em] uppercase">{children}</p>;
 
 // The saved composition goes on top of the list unless the list already shows it (a duplicate save).
@@ -107,7 +106,7 @@ function Row({ row, onOpen }) {
         onClick={() => onOpen(row.units)}
       >
         <span className="text-[13px]">{row.title}</span>{" "}
-        <span className="text-[10px] tracking-[.08em]">{chimes(row.unitCount)} · {row.createdAt.slice(0, 10)}</span>
+        <span className="text-[10px] tracking-[.08em]">{row.createdAt.slice(0, 10)}</span>
       </button>
     </li>
   );

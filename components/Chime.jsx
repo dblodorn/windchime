@@ -169,7 +169,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
     [chime, unit.volume, unit.tubes, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const prog = useMemo(() => { chime.chooseVoice(voice); return chime.midiProgram(); }, [chime, voice, fontsVersion]);
-  useEffect(() => { chime.setSound(unit.sound); }, [chime, unit.sound]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { chime.setSound(unit.sound, { quiet: unit.soundQuiet }); }, [chime, unit.sound]);
 
   // canvas + animation; the instance is torn down with the unit
   useEffect(() => {
@@ -228,7 +229,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
     if (unit.sound) { set({ sound: false }); return; }
     try {
       await E.startAudio(); // unlocks inside this tap
-      set({ sound: true });
+      set({ sound: true, soundQuiet: false });
     } catch (err) {
       console.error("could not start audio", err);
     }
@@ -352,7 +353,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       </div>
       {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
       <div id={`${p}-notes`} hidden={!unit.notes}>
-        <div role="group" aria-label="TUBES" className="tubes grid max-w-full border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${unit.tubes}, minmax(0, 1fr))` }}>
+        <div role="group" aria-label="TUBES" className="tubes grid max-w-full bg-background border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${unit.tubes}, minmax(0, 1fr))` }}>
           {scale.map((s, i) => {
             const m = unit.root + s;
             return (
@@ -419,7 +420,7 @@ export default function Chime() {
   const unitsRef = useRef(units);
   unitsRef.current = units;
   const save = useCallback(() => {
-    store.set("units", { v: 1, units: unitsRef.current.map(({ sound, ...u }) => u) });
+    store.set("units", { v: 1, units: unitsRef.current.map(({ sound, soundQuiet, ...u }) => u) });
     store.remove("pos"); store.remove("midiCh");
   }, []);
   useEffect(() => {
@@ -435,7 +436,20 @@ export default function Chime() {
     unitsRef.current.forEach(u => M.endNotes(u.channel));
     setUnits(us);
   }, []);
-  const openSaved = useCallback(records => { replaceComposition(freshUnits(records)); setMenuOpen(false); }, [replaceComposition]);
+  // RESET: one default unit, as on a first visit, with a fresh id so it starts from rest
+  const reset = useCallback(() => replaceComposition([defaultUnit(newId())]), [replaceComposition]);
+  // A saved composition is picked with a tap, so its units start sounding: audio starts inside the click, the units
+  // load muted at once, and the ones still on the page turn on when audio is running (quietly: no arpeggio each)
+  const openSaved = useCallback(records => {
+    const started = E.startAudio();
+    const us = freshUnits(records), ids = new Set(us.map(u => u.id));
+    replaceComposition(us);
+    setMenuOpen(false);
+    started.then(
+      () => setUnits(cur => cur.map(u => (ids.has(u.id) ? { ...u, sound: true, soundQuiet: true } : u))),
+      err => console.error("could not start audio", err),
+    );
+  }, [replaceComposition]);
   const getUnits = useCallback(() => unitsRef.current, []);
 
   const change = useCallback((id, patch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
@@ -444,7 +458,7 @@ export default function Chime() {
     const src = us.find(u => u.id === id);
     if (!src || us.length >= MAX_UNITS) return us;
     const z = Math.max(...us.map(u => u.z)) + 1;
-    return [...us, { ...src, id: newId(), channel: lowestFreeChannel(us), x: at.x + 24, y: at.y + 24, z }];
+    return [...us, { ...src, soundQuiet: false, id: newId(), channel: lowestFreeChannel(us), x: at.x + 24, y: at.y + 24, z }];
   }), []);
   const remove = useCallback(id => {
     const us = unitsRef.current, u = us.find(v => v.id === id);
@@ -552,13 +566,13 @@ export default function Chime() {
         ))}
       </div>
 
-      {/* MENU opens the COMPOSITIONS panel: SAVE and the public list of saved compositions. The one icon outside the
-          units' round buttons, by request; square like SHARE and MIDI. */}
+      {/* MENU (upper right) opens the COMPOSITIONS panel: SAVE and the public list of saved compositions. The one icon
+          outside the units' round buttons, by request; square like SHARE and MIDI. */}
       <Sheet open={menuOpen} onOpenChange={onMenuOpenChange}>
         <SheetTrigger asChild>
           <Button
             aria-label="MENU"
-            className="fixed right-[calc(16px+168px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-11 p-0"
+            className="fixed top-[calc(16px+env(safe-area-inset-top,0px))] right-[calc(16px+env(safe-area-inset-right,0px))] z-40 h-11 w-11 p-0"
           >
             <Menu size={20} aria-hidden="true" shapeRendering="crispEdges" />
           </Button>
@@ -575,10 +589,18 @@ export default function Chime() {
       {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
           that leaves the link in the address bar */}
       <Button
-        className="fixed right-[calc(16px+84px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
+        className="fixed right-[calc(16px+168px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
         onClick={onShare}
       >
         {shared ? "COPIED" : "SHARE"}
+      </Button>
+
+      {/* RESET goes back to one default unit at once, with no confirmation */}
+      <Button
+        className="fixed right-[calc(16px+84px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
+        onClick={reset}
+      >
+        RESET
       </Button>
 
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
