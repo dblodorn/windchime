@@ -10,6 +10,12 @@ import * as Sh from "../lib/share";
 import { Button } from "@/components/ui/button";
 
 const PAGE = 20;
+// The API stores UTC and not the saver's zone, so a save time is shown in the viewer's own zone, labelled with it.
+const STAMP = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" });
+const savedAt = iso => {
+  const p = Object.fromEntries(STAMP.formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} ${p.timeZoneName}`;
+};
 const CONNECTION_KEY = "Compositions_dmbkSoundChimeCompositions";
 
 // one store for the page's lifetime, so reopening the panel shows the list at once (and refetches it: `opening`)
@@ -106,7 +112,7 @@ function Row({ row, onOpen }) {
         onClick={() => onOpen(row.units)}
       >
         <span className="text-[13px]">{row.title}</span>{" "}
-        <span className="text-[10px] tracking-[.08em]">{row.createdAt.slice(0, 10)}</span>
+        <time dateTime={row.createdAt} className="text-[10px] tracking-[.08em]">{savedAt(row.createdAt)}</time>
       </button>
     </li>
   );
