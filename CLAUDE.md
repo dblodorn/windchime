@@ -21,8 +21,8 @@ A wind chime simulation with 2–8 tubes (TUBES, 6 by default). Wind pushes a sa
 app/layout.jsx       Knif Mono via next/font/local, metadata, viewport
 app/fonts/           AA_Knif-mono.woff (single weight, 400)
 app/page.jsx         renders <Chime />
-app/opengraph-image.jsx the share card (next/og, 1200×630, prerendered at build): og-head.png over "windchime" in Knif Mono
-app/og-head.png      the card's head, a 1-bit Atkinson-dithered woodcut already at 2× (490×460), drawn at its own size so it isn't resampled
+app/opengraph-image.jsx the share card (next/og, 1200×630, prerendered at build): og-head.png over "chime" in Knif Mono
+app/og-head.png      the card's head, a 1-bit Atkinson-dithered woodcut (245×230), drawn at its own size so it isn't resampled
 app/globals.css      Tailwind imports, 1-bit theme tokens, base layer, a few component rules (canvas, .lead, .tubes .hit)
 components/Chime.jsx the whole UI (client component): `Chime` (the unit list, storage, the GM font, MIDI state and the MIDI OUT dialog with its fixed button) and `ChimeUnit` (one unit: drawing, round buttons, SETTINGS popover, notes drawer, its engine instance)
 components/ui/popover.jsx hand-written on radix-ui's Popover, in the 1-bit style
