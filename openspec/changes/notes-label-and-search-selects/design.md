@@ -48,6 +48,10 @@ SCALE and SOUNDFONT are `ParamSelect`s (Radix Select) inside each unit's SETTING
 
 `onOpenAutoFocus` calls `preventDefault()` and focuses the input, except when `matchMedia("(any-hover: none) and (any-pointer: coarse)").matches`. In that case it focuses the list container (`tabIndex=-1`), so arrow keys from a hardware keyboard still work. This is the same query as the `touch` variant. It is read in the open handler, not during render, so SSR is unaffected.
 
+### No focus zoom on iOS
+
+iOS Safari zooms into a focused field whose font is under 16px; the app is 13px. The search input is 16px under `@supports (-webkit-touch-callout: none)`, a property only iOS/iPadOS WebKit supports, so desktop keeps 13px. Rejected: `maximum-scale=1` in the viewport, which stops the focus zoom but also pinch zoom on Android Chrome (iOS ignores it for pinch).
+
 ### The selected mark
 
 Rows show `■` after the text for the current value, as `SelectItem`'s indicator does today, in the grouped and the filtered list alike. The mark follows the value, not the highlight, so an inverted highlighted row and a marked selected row can both be shown at once. The selected row also gets `aria-selected="true"`. The mark sits in its own `aria-hidden` span, so option names are clean (the existing Select keeps the `■` in names; tests already strip it). Highlighted rows invert through `bg-foreground text-background`.

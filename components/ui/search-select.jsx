@@ -9,6 +9,8 @@ import { Button } from "./button"
 // `groups` is [{ label, items: [{ value, name, text }] }]: `name` is matched, `text` is shown.
 // Hand-written on Radix Popover (not cmdk) so the ordering is exactly rank()'s; nested in the settings
 // popover, Radix's layer stack sends Escape and outside presses to this list first.
+// iOS Safari zooms the page into any field under 16px on focus, so the search is 16px there only
+// (-webkit-touch-callout is iOS-only); a maximum-scale viewport would also stop pinch zoom on Android.
 // The panel has a fixed height, so filtering (down to the empty state) never shrinks, moves or flips it.
 
 const TOUCH = "(any-hover: none) and (any-pointer: coarse)" // the `touch` variant in globals.css
@@ -114,7 +116,7 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled 
             <input ref={inputRef} type="text" role="searchbox" aria-labelledby={`${id}-search-label`} aria-controls={listId} aria-activedescendant={active}
               autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="done"
               value={query} onChange={e => search(e.target.value)} onKeyDown={onListKey}
-              className="min-w-0 flex-1 border-0 bg-background p-0 text-foreground uppercase outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-dashed focus-visible:outline-foreground" />
+              className="min-w-0 flex-1 border-0 bg-background p-0 text-foreground uppercase [@supports(-webkit-touch-callout:none)]:text-[16px] outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-dashed focus-visible:outline-foreground" />
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-labelledby={`${id}-label`} tabIndex={-1} aria-activedescendant={active} onKeyDown={onListKey}
             className="min-h-0 overflow-x-hidden overflow-y-auto outline-none">
