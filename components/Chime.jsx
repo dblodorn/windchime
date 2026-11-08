@@ -30,6 +30,14 @@ const store = {
 const rootText = m => `${E.noteName(m)}   ${E.mtof(m).toFixed(1)} HZ`;
 const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
 const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
+// OUTPUT "3-4" shows as "3–4"; the options are the pairs, then the single channels, up to the device's count
+const outputText = o => o.replace("-", "–");
+const outputFits = (o, n) => { const { first, count } = E.outputOf(o); return first + count <= n; };
+const outputOptions = n => [
+  ...Array.from({ length: n >> 1 }, (_, k) => `${2 * k + 1}-${2 * k + 2}`),
+  ...Array.from({ length: n }, (_, k) => String(k + 1)),
+];
+const deviceName = d => d.label.toUpperCase();
 
 const NOTE = "m-0 max-w-[60ch] text-[11px]";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
@@ -54,9 +62,9 @@ function ParamSlider({ id, value, onChange, ...range }) {
 }
 
 // `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render
-function ParamSelect({ id, value, display, onChange, children }) {
+function ParamSelect({ id, value, display, onChange, disabled, children }) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger id={id} aria-labelledby={`${id}-label`}><SelectValue>{display}</SelectValue></SelectTrigger>
       <SelectContent>{children}</SelectContent>
     </Select>
@@ -139,7 +147,7 @@ function loadUnits() {
 const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
-const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront }) {
+const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront }) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
   const canvasRef = useRef(null);
@@ -167,6 +175,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   // push parameters into the engine
   useEffect(() => { chime.setParams({ volume: unit.volume, tubes: unit.tubes, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
     [chime, unit.volume, unit.tubes, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
+  // where it is heard; the engine plays it on 1-2 while the device lacks those channels
+  useEffect(() => { chime.setParams({ output: E.outputOf(unit.output) }); }, [chime, unit.output]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const prog = useMemo(() => { chime.chooseVoice(voice); return chime.midiProgram(); }, [chime, voice, fontsVersion]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,6 +255,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const p = id; // per-unit prefix for element ids
   const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
   const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
+  const outputOk = outputFits(unit.output, outChannels);
+  const outputLabel = outputText(unit.output) + (outputOk ? "" : "   UNAVAILABLE");
 
   return (
     <motion.section
@@ -335,6 +347,15 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                   ))}
                 </ParamSelect>
               </Param>
+              {/* not on phones and tablets, which play through their own output */}
+              <div className="touch:hidden">
+                <Param id={`${p}-p-out`} label="OUTPUT" value={outputLabel}>
+                  <ParamSelect id={`${p}-p-out`} value={unit.output} display={outputLabel} onChange={v => set({ output: v })}>
+                    {!outputOk && <SelectItem value={unit.output} disabled>{outputLabel}</SelectItem>}
+                    {outputOptions(outChannels).map(o => <SelectItem key={o} value={o}>{outputText(o)}</SelectItem>)}
+                  </ParamSelect>
+                </Param>
+              </div>
               <Param id={`${p}-p-ch`} label="CHANNEL" value={unit.channel === 10 ? "10  GM DRUMS" : String(unit.channel)}>
                 <ParamSelect id={`${p}-p-ch`} value={String(unit.channel)} display={channelText(unit.channel)} onChange={v => set({ channel: +v })}>
                   {CHANNELS.map(c => <SelectItem key={c} value={String(c)}>{channelText(c)}</SelectItem>)}
@@ -389,6 +410,14 @@ export default function Chime() {
   const [localSound, setLocalSound] = useState(true);
   const [midiMsg, setMidiMsg] = useState("");
   const [midiOpen, setMidiOpen] = useState(false);
+  // AUDIO OUT: the chosen device is remembered by id and name (ids reset when site data is cleared), with the last
+  // channel count seen on it, so OUTPUT has its options before audio starts. Never in links or saved compositions.
+  const [audioOpen, setAudioOpen] = useState(false);
+  const [audioSupported, setAudioSupported] = useState(null); // null until mounted (SSR)
+  const [audioDevices, setAudioDevices] = useState([]);
+  const [audioWanted, setAudioWanted] = useState({ id: "", label: "", channels: 2 });
+  const [liveChannels, setLiveChannels] = useState(null);
+  const [audioMsg, setAudioMsg] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuOpenings, setMenuOpenings] = useState(0);
   const onMenuOpenChange = useCallback(open => { setMenuOpen(open); if (open) setMenuOpenings(n => n + 1); }, []);
@@ -516,6 +545,71 @@ export default function Chime() {
   useEffect(() => { store.set("sendProg", sendProg); store.set("sendCC", sendCC); }, [sendProg, sendCC]);
   useEffect(() => { E.setMuted(!localSound); }, [localSound]);
 
+  // ---------- audio out ----------
+  const listDevices = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      // "default" and "communications" are aliases Chrome adds for the system's own choices
+      setAudioDevices(all.filter(d => d.kind === "audiooutput" && !["default", "communications"].includes(d.deviceId))
+        .map(d => ({ id: d.deviceId, label: d.label })));
+    } catch (e) { setAudioDevices([]); }
+  }, []);
+  useEffect(() => {
+    setAudioSupported(E.audioOutSupported() && !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices));
+    const w = store.get("audioOut", null);
+    if (w && typeof w.id === "string") setAudioWanted({ id: w.id, label: typeof w.label === "string" ? w.label : "", channels: Math.max(1, Math.min(Sh.MAX_OUTPUT_CHANNELS, Math.round(+w.channels) || 2)) });
+    const offOut = E.onOutputChange(n => setLiveChannels(n));
+    if (E.outputChannels()) setLiveChannels(E.outputChannels());
+    if (!navigator.mediaDevices || !navigator.mediaDevices.addEventListener) return offOut;
+    listDevices();
+    navigator.mediaDevices.addEventListener("devicechange", listDevices);
+    return () => { offOut(); navigator.mediaDevices.removeEventListener("devicechange", listDevices); };
+  }, [listDevices]);
+  // the device to play on: the wanted one by id, else by name; the system default while it is unplugged. While the
+  // browser hides device names (no media permission yet) the list can't be read, so the remembered id is tried as is.
+  const namesHidden = audioSupported && audioDevices.every(d => !d.label);
+  const wantedDevice = audioWanted.id
+    ? audioDevices.find(d => d.id === audioWanted.id) || (audioWanted.label && audioDevices.find(d => d.label === audioWanted.label))
+    : null;
+  const audioDisconnected = !!audioSupported && !!audioWanted.id && !namesHidden && !wantedDevice;
+  const sinkId = !audioSupported || !audioWanted.id ? "" : wantedDevice ? wantedDevice.id : namesHidden ? audioWanted.id : "";
+  const sinkListed = !!wantedDevice;
+  useEffect(() => { if (audioSupported) E.setAudioDevice(sinkId, { listed: sinkListed }); }, [audioSupported, sinkId, sinkListed]);
+  // the count seen on the wanted device is kept for the next visit
+  useEffect(() => {
+    if (liveChannels && !audioDisconnected) setAudioWanted(w => (w.channels === liveChannels ? w : { ...w, channels: liveChannels }));
+  }, [liveChannels, audioDisconnected]);
+  useEffect(() => { if (audioSupported !== null) store.set("audioOut", { v: 1, ...audioWanted }); }, [audioWanted, audioSupported]);
+  const outChannels = liveChannels || audioWanted.channels || 2;
+  const chooseDevice = v => {
+    if (v === "default") setAudioWanted(w => ({ id: "", label: "", channels: w.id ? 2 : w.channels }));
+    else {
+      const d = audioDevices.find(x => x.id === v);
+      if (d) setAudioWanted(w => ({ id: d.id, label: d.label, channels: w.id === d.id ? w.channels : 2 }));
+    }
+  };
+  // names need a media permission, asked only from this button; the input it opens is closed at once
+  const onShowNames = async () => {
+    setAudioMsg("");
+    try {
+      if (typeof navigator.mediaDevices.selectAudioOutput === "function") {
+        const d = await navigator.mediaDevices.selectAudioOutput();
+        await listDevices();
+        setAudioWanted({ id: d.deviceId, label: d.label, channels: 2 });
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      await listDevices();
+    } catch (err) {
+      setAudioMsg("DEVICE NAMES NOT AVAILABLE");
+    }
+  };
+  const deviceValue = audioDisconnected ? "wanted" : sinkId && (wantedDevice || namesHidden) ? (wantedDevice ? wantedDevice.id : "wanted") : "default";
+  const deviceText = audioDisconnected ? `${audioWanted.label.toUpperCase() || "DEVICE"}   DISCONNECTED`
+    : wantedDevice ? deviceName(wantedDevice)
+    : sinkId ? audioWanted.label.toUpperCase() || "CHOSEN DEVICE" : "SYSTEM DEFAULT";
+
   const onMidiConnect = async () => {
     setMidiMsg("asking the browser for MIDI access");
     try {
@@ -561,7 +655,7 @@ export default function Chime() {
           their stacking below the MIDI button */}
       <div className="isolate grid size-full place-items-center">
         {units.map((u, i) => (
-          <ChimeUnit key={u.id} unit={u} index={i} count={units.length} mainRef={mainRef} fontsVersion={fontsVersion} groups={groups}
+          <ChimeUnit key={u.id} unit={u} index={i} count={units.length} mainRef={mainRef} fontsVersion={fontsVersion} groups={groups} outChannels={outChannels}
             midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={front} />
         ))}
       </div>
@@ -586,22 +680,54 @@ export default function Chime() {
         </SheetContent>
       </Sheet>
 
+      {/* the lower-right row: SHARE, RESET, AUDIO, MIDI, 8 px apart and equal in width (narrower on the narrowest
+          screens); phones and tablets have no AUDIO, so their row is SHARE, RESET, MIDI */}
+      <div className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]">
       {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
           that leaves the link in the address bar */}
-      <Button
-        className="fixed right-[calc(16px+168px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
-        onClick={onShare}
-      >
+      <Button onClick={onShare}>
         {shared ? "COPIED" : "SHARE"}
       </Button>
 
       {/* RESET goes back to one default unit at once, with no confirmation */}
-      <Button
-        className="fixed right-[calc(16px+84px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5"
-        onClick={reset}
-      >
+      <Button onClick={reset}>
         RESET
       </Button>
+
+      {/* AUDIO OUT: the output device for the browser's sound; each unit's OUTPUT is in its settings */}
+      <Dialog open={audioOpen} onOpenChange={setAudioOpen}>
+        <DialogTrigger asChild>
+          <Button className="touch:hidden">AUDIO</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <div className="flex items-baseline gap-2">
+              <DialogTitle>AUDIO OUT</DialogTitle>
+              <span className="lead" />
+              <DialogClose asChild><Button>CLOSE</Button></DialogClose>
+            </div>
+            <DialogDescription className={NOTE}>Play the browser&apos;s sound through any audio device. Each chime picks its channels in its settings (OUTPUT).</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3.5">
+            <Param id="a-dev" label="DEVICE" value={audioDisconnected ? "DISCONNECTED" : sinkId ? "CHOSEN" : "DEFAULT"}>
+              <ParamSelect id="a-dev" value={deviceValue} display={deviceText} onChange={chooseDevice} disabled={!audioSupported}>
+                <SelectItem value="default">SYSTEM DEFAULT</SelectItem>
+                {deviceValue === "wanted" && <SelectItem value="wanted" disabled>{deviceText}</SelectItem>}
+                {!namesHidden && audioDevices.map(d => <SelectItem key={d.id} value={d.id}>{deviceName(d)}</SelectItem>)}
+              </ParamSelect>
+            </Param>
+            <Param id="a-ch" label="CHANNELS" value={String(outChannels)} />
+            {namesHidden && (
+              <div className={ROW}>
+                <Button onClick={onShowNames}>SHOW DEVICE NAMES</Button>
+                <span className={`${NOTE} min-w-0`}>The browser shows device names only after you allow the microphone once. Nothing is recorded.</span>
+              </div>
+            )}
+            {audioSupported === false && <p className={NOTE}>THIS BROWSER PLAYS THROUGH THE SYSTEM OUTPUT. CHOOSE THE DEVICE IN YOUR SYSTEM SETTINGS.</p>}
+            {audioMsg && <p className={NOTE}>{audioMsg}</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* MIDI OUT lives in a dialog; its state stays in Chime, so MIDI keeps running while the dialog is closed */}
       <Dialog open={midiOpen} onOpenChange={setMidiOpen}>
@@ -609,7 +735,7 @@ export default function Chime() {
           <Button
             aria-label="MIDI"
             data-live={midiLive || undefined}
-            className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 h-11 w-[76px] px-2.5 data-[live]:bg-foreground data-[live]:text-background"
+            className="data-[live]:bg-foreground data-[live]:text-background"
           >
             <MidiLogo className="h-[18px] w-12" />
           </Button>
@@ -658,6 +784,7 @@ export default function Chime() {
             </div>
         </DialogContent>
       </Dialog>
+      </div>
     </main>
   );
 }
