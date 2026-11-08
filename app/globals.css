@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* phones and tablets: every input is touch, none can hover. AUDIO and each unit's OUTPUT are hidden there; a
+   touchscreen laptop (or a tablet with a mouse) still has a pointer that hovers, so it keeps them. */
+@custom-variant touch (@media (any-hover: none) and (any-pointer: coarse));
+
 /* 1-bit theme: every shadcn token is pure black or pure white. No dark variant, no radius, no shadows.
    Layout: 1-bit raster instrument on the left, Courier parameter sheet on the right; one column on phones. */
 :root {
