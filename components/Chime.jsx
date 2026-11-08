@@ -12,13 +12,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Slider } from "@/components/ui/slider";
 
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
 const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
 const SCALE_BY_NAME = Object.fromEntries(E.SCALE_LIST.map(s => [s.name, s]));
+// SCALE's options for SearchSelect: by group, in catalog order
+const SCALE_OPTIONS = SCALE_GROUPS.map(g => ({ label: g.toUpperCase(), items: E.SCALE_LIST.filter(s => s.group === g).map(s => ({ value: s.name, name: s.name, text: s.name })) }));
 const CHANNELS = Array.from({ length: 16 }, (_, k) => k + 1);
 const MAX_UNITS = Sh.MAX_UNITS;
 const store = {
@@ -88,13 +91,13 @@ function voiceGroups() {
   const groups = [];
   E.fonts.forEach((f, fi) => {
     const list = f.presets.map((p, i) => ({ p, i })).sort((a, b) => a.p.bank - b.p.bank || a.p.preset - b.p.preset);
-    const opt = ({ p, i }) => ({ value: `s${fi}:${i}`, text: `${String(p.preset + 1).padStart(3, " ")}  ${p.name.toUpperCase()}` });
-    const optBank = ({ p, i }) => ({ value: `s${fi}:${i}`, text: `${p.bank}:${p.preset + 1}  ${p.name.toUpperCase()}` });
+    const opt = ({ p, i }) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${String(p.preset + 1).padStart(3, " ")}  ${p.name.toUpperCase()}` });
+    const optBank = ({ p, i }) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${p.bank}:${p.preset + 1}  ${p.name.toUpperCase()}` });
     E.GM_FAMILIES.forEach((fam, k) => groups.push({ label: fam, items: list.filter(x => x.p.bank === 0 && x.p.preset >> 3 === k).map(opt) }));
     groups.push({ label: "DRUM KITS", items: list.filter(x => x.p.bank === 128).map(opt) });
     groups.push({ label: "OTHER BANKS", items: list.filter(x => x.p.bank !== 0 && x.p.bank !== 128).map(optBank) });
   });
-  groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, text: v.name })) });
+  groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, name: v.name, text: v.name })) });
   return groups.filter(g => g.items.length);
 }
 const voiceExists = v => {
@@ -253,7 +256,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   };
 
   const p = id; // per-unit prefix for element ids
-  const voiceText = (groups.flatMap(g => g.items).find(it => it.value === voice) || {}).text || "";
+  const voiceItem = groups.flatMap(g => g.items).find(it => it.value === voice) || { name: "", text: "" };
+  const voiceText = voiceItem.text;
   const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
   const outputOk = outputFits(unit.output, outChannels);
   const outputLabel = outputText(unit.output) + (outputOk ? "" : "   UNAVAILABLE");
@@ -328,24 +332,10 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                 </ParamSelect>
               </Param>
               <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                <ParamSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} onChange={v => set({ scale: v })}>
-                  {SCALE_GROUPS.map(g => (
-                    <SelectGroup key={g}>
-                      <SelectLabel>{g.toUpperCase()}</SelectLabel>
-                      {E.SCALE_LIST.map(s => s.group === g && <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>)}
-                    </SelectGroup>
-                  ))}
-                </ParamSelect>
+                <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
               </Param>
               <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
-                <ParamSelect id={`${p}-p-voice`} value={voice} display={voiceText} onChange={v => set({ voice: v })}>
-                  {groups.map(g => (
-                    <SelectGroup key={g.label}>
-                      <SelectLabel>{g.label}</SelectLabel>
-                      {g.items.map(it => <SelectItem key={it.value} value={it.value}>{it.text}</SelectItem>)}
-                    </SelectGroup>
-                  ))}
-                </ParamSelect>
+                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} onChange={v => set({ voice: v })} />
               </Param>
               {/* not on phones and tablets, which play through their own output */}
               <div className="touch:hidden">
@@ -386,6 +376,10 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             );
           })}
         </div>
+        {/* what the pads play: the voice (no program number) and the scale */}
+        <p className="m-0 max-w-full truncate border border-t-0 border-foreground bg-background px-2 py-1 text-[10px] leading-[1.3]" style={{ width: canvasPx + 2 }}>
+          {voiceItem.name} · {unit.scale}
+        </p>
       </div>
     </motion.section>
   );
