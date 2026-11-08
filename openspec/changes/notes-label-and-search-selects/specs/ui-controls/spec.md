@@ -105,13 +105,27 @@ The SCALE and SOUNDFONT selects SHALL each open a list headed by a single-line s
 
 On open, the search field SHALL be focused, except on phones and tablets (every input touch-only). There the list opens with the field unfocused, so the on-screen keyboard does not cover it until the field is tapped.
 
-With an empty search, the list SHALL show every option under its group headings, in the existing order. The current option is marked and highlighted and is scrolled into view. With text in the search, the list SHALL show only the options whose name contains that text, ignoring case, as one list with no headings. Names that start with the text come first, then the other matches, each set in alphabetical order. The first match is highlighted. The current option SHALL keep its mark wherever it is shown, filtered or not, and the mark stays on it while the highlight moves, so what is selected and what Enter would choose can always be told apart. A SOUNDFONT option's name is its voice name without its program number. The option still shows the same text as in the unfiltered list. When nothing matches, the list SHALL show `NO MATCH` and nothing can be chosen.
+With an empty search, the list SHALL show every option under its group headings, in the existing order. The current option is marked and highlighted and is scrolled into view. With text in the search, the list SHALL show only the options whose name contains that text, ignoring case, as one list with no headings. Names that start with the text come first, then the other matches, each set in alphabetical order. SCALE SHALL also be narrowed by category: when the text is part of a scale group's name (for example `korea`, `penta`, `maqam`), that group's other scales SHALL follow the name matches, under the group's heading and in the group's own order. The first match is highlighted. The current option SHALL keep its mark wherever it is shown, filtered or not, and the mark stays on it while the highlight moves, so what is selected and what Enter would choose can always be told apart. A SOUNDFONT option's name is its voice name without its program number. The option still shows the same text as in the unfiltered list. When nothing matches, the list SHALL show an empty state in its place: `NO MATCH FOR` and the typed text, and a CLEAR SEARCH button that empties the search, shows the full grouped list and puts focus back in the search field. Nothing can be chosen from the empty state, and Enter changes nothing.
+
+While open, the panel (search field and list) SHALL keep one height, 320 px or the space available if that is less, whatever the number of matches, so filtering never shrinks, moves or flips it. This includes on a phone with the on-screen keyboard up.
 
 Arrow Down and Arrow Up SHALL move the highlight through the shown options, stopping at the ends. Enter SHALL choose the highlighted option. A tap or click on an option SHALL choose it. Choosing closes the list, returns focus to the closed field and leaves the settings popover open. Escape, a tap outside the list or activating the field again SHALL close the list without changing the value, and Escape MUST NOT also close the settings popover. The search is cleared each time the list opens. The list MUST stay within the viewport on a phone-width screen and scroll when it is longer than the space available, with the search field staying visible.
 
 #### Scenario: Filter by start of name
 - **WHEN** SCALE is opened and the user types `py`
 - **THEN** the list shows PYEONGJO and PYEONGJO HEXATONIC, in that order, with no group headings, and PYEONGJO is highlighted
+
+#### Scenario: Narrow scales by category
+- **WHEN** SCALE is opened and the user types `korea`
+- **THEN** the list shows the KOREA heading with PYEONGJO, UJO, GYEMYEONJO, PYEONGJO HEXATONIC and NANDO-GYEMYEONJO, in that order, and no other scales
+
+#### Scenario: Name matches before a category
+- **WHEN** SCALE is opened and the user types `hexa`
+- **THEN** the scales whose names contain HEXA come first, with no heading, then the HEXATONIC heading with its scales not already listed
+
+#### Scenario: SOUNDFONT matches names only
+- **WHEN** SOUNDFONT is opened and the user types `drum kits`
+- **THEN** the list shows the empty state, because SOUNDFONT does not match group names
 
 #### Scenario: Starts-with before contains
 - **WHEN** SOUNDFONT is opened after the General MIDI font loads and the user types `bass`
@@ -135,7 +149,15 @@ Arrow Down and Arrow Up SHALL move the highlight through the shown options, stop
 
 #### Scenario: No match
 - **WHEN** SOUNDFONT is opened and the user types `zzz`
-- **THEN** the list shows `NO MATCH`, and pressing Enter changes nothing
+- **THEN** the list shows `NO MATCH FOR ZZZ` and a CLEAR SEARCH button, the panel keeps its height and position, and pressing Enter changes nothing
+
+#### Scenario: Clearing from the empty state
+- **WHEN** the empty state is shown and the user activates CLEAR SEARCH
+- **THEN** the search field is empty and focused and the full grouped list is shown
+
+#### Scenario: Steady height while filtering
+- **WHEN** SCALE is opened and the user types `py`, then `pyz`
+- **THEN** the panel's height and top edge stay the same as when it opened, with two matches and with none
 
 #### Scenario: Escape closes only the list
 - **WHEN** SCALE is open with text typed and the user presses Escape

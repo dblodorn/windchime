@@ -3,33 +3,45 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Popover as PopoverPrimitive } from "radix-ui"
+import { Button } from "./button"
 
 // A select with a search field, for long lists (SCALE, SOUNDFONT). Same field and list look as select.jsx.
 // `groups` is [{ label, items: [{ value, name, text }] }]: `name` is matched, `text` is shown.
 // Hand-written on Radix Popover (not cmdk) so the ordering is exactly rank()'s; nested in the settings
 // popover, Radix's layer stack sends Escape and outside presses to this list first.
+// The panel has a fixed height, so filtering (down to the empty state) never shrinks, moves or flips it.
 
 const TOUCH = "(any-hover: none) and (any-pointer: coarse)" // the `touch` variant in globals.css
 const byName = (a, b) => a.name.localeCompare(b.name, "en", { numeric: true })
 
 // Empty query: the groups as given. Otherwise one flat list of names containing it (any case):
-// names that start with it first, then the rest, each part alphabetical.
-export function rank(groups, query) {
+// names that start with it first, then the rest, each part alphabetical. With `byGroup`, the groups
+// whose label contains it follow, under their headings in their own order, minus options already listed.
+export function rank(groups, query, byGroup = false) {
   const q = query.trim().toUpperCase()
   if (!q) return groups
   const hits = groups.flatMap(g => g.items).filter(o => o.name.toUpperCase().includes(q))
   const starts = o => o.name.toUpperCase().startsWith(q)
-  return [{ label: null, items: [...hits.filter(starts).sort(byName), ...hits.filter(o => !starts(o)).sort(byName)] }]
+  const out = hits.length ? [{ label: null, items: [...hits.filter(starts).sort(byName), ...hits.filter(o => !starts(o)).sort(byName)] }] : []
+  if (byGroup) {
+    const listed = new Set(hits)
+    for (const g of groups)
+      if (g.label.toUpperCase().includes(q)) {
+        const items = g.items.filter(o => !listed.has(o))
+        if (items.length) out.push({ label: g.label, items })
+      }
+  }
+  return out
 }
 
-function SearchSelect({ id, value, display, onChange, groups, disabled }) {
+function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [hi, setHi] = React.useState(0)
   const inputRef = React.useRef(null)
   const listRef = React.useRef(null)
 
-  const shown = React.useMemo(() => rank(groups, query), [groups, query])
+  const shown = React.useMemo(() => rank(groups, query, byGroup), [groups, query, byGroup])
   const flat = shown.flatMap(g => g.items)
   const listId = `${id}-list`
   const optId = i => `${id}-o-${i}`
@@ -96,7 +108,7 @@ function SearchSelect({ id, value, display, onChange, groups, disabled }) {
             if (window.matchMedia(TOUCH).matches) listRef.current?.focus({ preventScroll: true })
             else { const el = inputRef.current; el?.focus(); el?.setSelectionRange(el.value.length, el.value.length) }
           }}
-          className="z-50 flex w-[max(var(--radix-popover-trigger-width),240px)] max-w-[calc(100vw-32px)] max-h-(--radix-popover-content-available-height) flex-col border border-foreground bg-popover text-popover-foreground outline-none">
+          className="z-50 flex h-[min(320px,var(--radix-popover-content-available-height))] w-[max(var(--radix-popover-trigger-width),240px)] max-w-[calc(100vw-32px)] flex-col border border-foreground bg-popover text-popover-foreground outline-none">
           <div className="flex shrink-0 items-baseline gap-2 border-b border-foreground px-2 py-1">
             <span id={`${id}-search-label`} className="text-[11px] tracking-[.08em]">SEARCH</span>
             <input ref={inputRef} type="text" role="searchbox" aria-labelledby={`${id}-search-label`} aria-controls={listId} aria-activedescendant={active}
@@ -106,7 +118,12 @@ function SearchSelect({ id, value, display, onChange, groups, disabled }) {
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-labelledby={`${id}-label`} tabIndex={-1} aria-activedescendant={active} onKeyDown={onListKey}
             className="min-h-0 overflow-x-hidden overflow-y-auto outline-none">
-            {flat.length === 0 && <div className="px-2 py-1">NO MATCH</div>}
+            {flat.length === 0 && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 px-2 py-4 text-center">
+                <p className="m-0 break-all">NO MATCH FOR {query.trim().toUpperCase()}</p>
+                <Button onMouseDown={e => e.preventDefault()} onClick={() => { search(""); inputRef.current?.focus() }}>CLEAR SEARCH</Button>
+              </div>
+            )}
             {shown.map((g, k) => g.label === null ? g.items.map(option) : (
               <div key={g.label} role="group" aria-labelledby={`${id}-g-${k}`}>
                 <div id={`${id}-g-${k}`} className="px-2 pt-2 pb-0.5 text-[11px] font-bold uppercase tracking-[.06em]">{g.label}</div>

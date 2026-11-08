@@ -11,7 +11,7 @@ SCALE and SOUNDFONT are `ParamSelect`s (Radix Select) inside each unit's SETTING
 - Ordering that can be predicted exactly: matches that start with the text, then other matches, each set alphabetical.
 
 **Non-Goals:**
-- Fuzzy or typo-tolerant matching, or matching on group names or GM program numbers.
+- Fuzzy or typo-tolerant matching, matching SOUNDFONT on GM family names, or matching on GM program numbers.
 - Converting the other selects.
 - Showing the voice and scale anywhere else, such as on the canvas or in the trigger.
 
@@ -24,7 +24,8 @@ SCALE and SOUNDFONT are `ParamSelect`s (Radix Select) inside each unit's SETTING
 - **Alternative: shadcn `command` (cmdk).** Rejected. cmdk ranks with its own fuzzy `command-score`, and we would have to turn that off (`shouldFilter={false}`) and sort ourselves. That leaves it giving us only keyboard handling, at the cost of a new dependency, its own ARIA (whose names would need overriding to keep SCALE the only combobox called SCALE) and another component to restyle.
 - **Alternative: keep Radix Select and put an input in its content.** Rejected. Select's typeahead and focus management fight a text input inside the list, which is a known Radix limitation.
 - **Nesting.** The list popover is a child layer of the SETTINGS popover. Radix's DismissableLayer stack sends Escape and outside presses to the topmost layer only, which gives "Escape closes only the list" without extra code. `onCloseAutoFocus` returns focus to the trigger.
-- **Size.** `side="bottom"`, `collisionPadding={16}`, width `max(trigger width, 240px)` capped at `100vw - 32px`. `max-h` is `--radix-popover-content-available-height`. The input sits at the top and does not scroll (`sticky`); the list scrolls under it.
+- **Size.** `side="bottom"`, `collisionPadding={16}`, width `max(trigger width, 240px)` capped at `100vw - 32px`. The height is fixed, `min(320px, --radix-popover-content-available-height)`, not a `max-h`. A content-sized panel shrank to two rows on `NO MATCH`, and on a phone it then jumped or flipped as Radix re-placed it under the keyboard, so it looked as if it had disappeared. The search row is a fixed flex row; the list fills the rest and scrolls.
+- **Empty state.** `NO MATCH FOR <query>` and a CLEAR SEARCH `Button`, centered in the list area. CLEAR SEARCH calls `search("")` and refocuses the input; `onMouseDown` prevents default so the input keeps focus on desktop.
 
 ### Matching and ordering in one pure helper
 
@@ -33,6 +34,7 @@ SCALE and SOUNDFONT are `ParamSelect`s (Radix Select) inside each unit's SETTING
 `rank(options, q)`:
 - Normalize `q` to trimmed uppercase. An empty `q` returns the grouped input unchanged.
 - Otherwise keep the options whose `name.includes(q)`. Split them into `name.startsWith(q)` and the rest, then sort each set with `localeCompare(…, "en", { numeric: true })`, so `SLAP BASS 1` comes before `SLAP BASS 2` and `10` sorts after `9`. Return one flat list.
+- With `byGroup` (SCALE only), the groups whose label contains `q` follow the flat list as `{ label, items }`, in catalog order, without options already listed. That is the category narrowing: `korea` gives the KOREA group. SOUNDFONT leaves it off by request scope; the GM family names (PIANO, ORGAN…) mostly repeat in preset names anyway.
 - Each option is `{ value, name, text, group }`. `name` is what is matched and `text` is what is shown. For scales, both are the scale name. For GM presets, `name` is the preset name and `text` is the existing numbered text. For built-in voices, both are the voice name.
 - `voiceGroups()` gains `name` on each item. Ties (the same name) keep their input order, because `sort` is stable.
 

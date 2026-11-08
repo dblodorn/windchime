@@ -332,7 +332,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                 </ParamSelect>
               </Param>
               <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} onChange={v => set({ scale: v })} />
+                <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
               </Param>
               <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
                 <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} onChange={v => set({ voice: v })} />
