@@ -220,7 +220,9 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
     const fit = () => {
       const avail = (stageRef.current ? stageRef.current.clientWidth : E.W) - 2;
       const maxByH = Math.max(320, window.innerHeight - 110) * E.W / E.H;
-      const w = Math.min(avail, maxByH, E.W * 2);
+      // narrow screens (the max-sm breakpoint): at most 298 px, so the unit with its border is 300 px wide
+      const cap = window.matchMedia("(width < 40rem)").matches ? 298 : E.W * 2;
+      const w = Math.min(avail, maxByH, cap);
       setCanvasPx(w >= E.W * 2 ? Math.floor(w / E.W) * E.W : w);
       setFitted(true);
     };
@@ -278,7 +280,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
       style={{ x, y, zIndex: unit.z }}
-      className="grid w-[min(402px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
+      className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
         <canvas
