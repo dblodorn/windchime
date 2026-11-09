@@ -179,7 +179,7 @@ When SEND PROGRAM CHANGE is on, the system SHALL send bank select and program ch
 - **THEN** no program change or CC74/CC71 messages are sent
 
 ### Requirement: Test note
-While a port is selected, a TEST NOTE control SHALL send, for each unit, one note-on for that unit's first tube's current note at velocity 100 on that unit's channel, followed by its note-off after 0.5 seconds, whether or not the wind is blowing. TEST NOTE MUST be unavailable while no port is selected.
+While a port is selected, a TEST NOTE control SHALL send, for each unit, one note-on for that unit's first tube's current note (a FURIN BELL unit's ROOT) at velocity 100 on that unit's channel, followed by its note-off after 0.5 seconds, whether or not the wind is blowing. TEST NOTE MUST be unavailable while no port is selected.
 
 #### Scenario: Test note sent
 - **WHEN** a port is selected, one unit is on channel 3, and the user activates TEST NOTE
@@ -193,6 +193,10 @@ While a port is selected, a TEST NOTE control SHALL send, for each unit, one not
 #### Scenario: No port selected
 - **WHEN** no port is selected
 - **THEN** TEST NOTE cannot be activated
+
+#### Scenario: Test note on a furin
+- **WHEN** a FURIN BELL unit with ROOT D5 is on channel 1 and the user activates TEST NOTE
+- **THEN** `0x90, 74, 100` is sent, and its note-off about 0.5 seconds later
 
 ### Requirement: Panic
 A PANIC control SHALL end every note any unit is sounding on the selected port. It sends a note-off for each sounding note, then All Notes Off (CC123) and All Sound Off (CC120) on every channel that a unit uses.

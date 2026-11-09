@@ -39,7 +39,7 @@ Every element SHALL be drawn as single-pixel straight lines or runs of short str
 - **THEN** the tube's line stays visible through the clapper outline
 
 ### Requirement: Elements of the chime in three-quarter perspective
-The drawing SHALL show the chime in the same three-quarter view as before, with the camera turned 20° about the vertical axis so that no two tubes share a screen position (with single-pixel lines, the unturned view merges the back and front tubes into one line per pair). It is scaled to the 200×200 paper and has these elements:
+A TUBE CHIME unit's drawing SHALL show the chime in the same three-quarter view as before, with the camera turned 20° about the vertical axis so that no two tubes share a screen position (with single-pixel lines, the unturned view merges the back and front tubes into one line per pair). (A FURIN BELL unit's drawing is described by the `furin-bell` capability, in the same view.) It is scaled to the 200×200 paper and has these elements:
 - a hook line from the top edge to the ring;
 - the ring as one closed, foreshortened outline that is wider than it is tall;
 - one tube per the unit's tube count (2 to 8), each an outlined narrow rectangle (two side lines and top and bottom caps, open inside) as wide as the simulated tube, on a short string line, hung from a point on the ring outline at its true angle. The tubes SHALL be spaced evenly around the ring, and at 6 tubes they hang at exactly the angles they do today;
@@ -100,7 +100,7 @@ The drawing SHALL show the wind as sparse, short, single-pixel horizontal dashes
 - **THEN** more wind dashes are drawn
 
 ### Requirement: Strike a tube by tapping
-Tapping or clicking a unit's drawing near a tube's line, within the tube's height, SHALL strike that tube of that unit only. The strike has the same effect as before this change: velocity 96, the tube swings, sound plays through that unit's voice, a MIDI note is sent on that unit's channel when a port is selected, and its readout cell flashes. Each tube's hit area MUST extend at least 6 raster pixels to either side of its line, so the target is at least 12 CSS px wide at ×2. When hit areas overlap, the nearest tube wins. Tapping away from every tube strikes nothing; pressing there starts dragging the unit (see `ui-controls`).
+Tapping or clicking a TUBE CHIME unit's drawing near a tube's line, within the tube's height, SHALL strike that tube of that unit only. The strike has the same effect as before this change: velocity 96, the tube swings, sound plays through that unit's voice, a MIDI note is sent on that unit's channel when a port is selected, and its readout cell flashes. Each tube's hit area MUST extend at least 6 raster pixels to either side of its line, so the target is at least 12 CSS px wide at ×2. When hit areas overlap, the nearest tube wins. Tapping away from every tube strikes nothing; pressing there starts dragging the unit (see `ui-controls`). A FURIN BELL unit is struck by tapping its bell (see `furin-bell`).
 
 #### Scenario: Tap each tube
 - **WHEN** a person taps on each tube's line in turn, halfway down its length
@@ -119,7 +119,7 @@ Tapping or clicking a unit's drawing near a tube's line, within the tube's heigh
 - **THEN** CHIME 2's tube is struck and CHIME 1 strikes nothing from that tap
 
 ### Requirement: Tube readout matches the drawing
-The tube readout beneath the drawing SHALL keep its 1px black border and have one column per tube (2 to 8, each a note pad with note name and frequency), in tube order. The columns SHALL share the readout's width equally. Its width MUST equal the drawing's displayed width at every size and every tube count, and a struck tube's cell inverts briefly as before.
+The tube readout beneath the drawing SHALL keep its 1px black border and have one column per tube (2 to 8, each a note pad with note name and frequency), in tube order, or a single column for a FURIN BELL unit. The columns SHALL share the readout's width equally. Its width MUST equal the drawing's displayed width at every size, every tube count and either instrument, and a struck tube's cell inverts briefly as before.
 
 #### Scenario: Widths match
 - **WHEN** the page is shown at 1280 px and at 375 px wide
@@ -130,7 +130,7 @@ The tube readout beneath the drawing SHALL keep its 1px black border and have on
 - **THEN** the readout shows 8 pads in one row, its outer width equals the canvas's, and the page has no horizontal scroll
 
 ### Requirement: Tube count
-Each unit SHALL have between 2 and 8 tubes, set by its TUBES control (see `ui-controls`), with 6 as the default. A change of count SHALL take effect at once, while the chime keeps moving: the drawing, the hit areas, the tube readout, sound and MIDI all follow the new count from the next frame. Tubes that remain keep their tube numbers, so tubes 1 to N of the new count are tubes 1 to N of the old one. Notes already sounding from tubes that are removed SHALL end as they would have (their sound decays, and their MIDI note-offs are sent at the usual time), so no note is left stuck on. The wind, clapper and sail MUST NOT be reset by a change of count. The rate of strikes SHALL follow from the count with no compensation: more tubes give the clapper more to strike, and fewer tubes make a sparser chime.
+Each unit SHALL have between 2 and 8 tubes, set by its TUBES control (see `ui-controls`), with 6 as the default. The count is used while the unit is a TUBE CHIME; a FURIN BELL unit keeps it, unused and unshown, for when it switches back. A change of count SHALL take effect at once, while the chime keeps moving: the drawing, the hit areas, the tube readout, sound and MIDI all follow the new count from the next frame. Tubes that remain keep their tube numbers, so tubes 1 to N of the new count are tubes 1 to N of the old one. Notes already sounding from tubes that are removed SHALL end as they would have (their sound decays, and their MIDI note-offs are sent at the usual time), so no note is left stuck on. The wind, clapper and sail MUST NOT be reset by a change of count. The rate of strikes SHALL follow from the count with no compensation: more tubes give the clapper more to strike, and fewer tubes make a sparser chime.
 
 #### Scenario: Default count
 - **WHEN** the page loads with nothing saved
