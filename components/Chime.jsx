@@ -105,8 +105,10 @@ const voiceExists = v => {
   const [fi, pi] = v.slice(1).split(":").map(Number);
   return !!(E.fonts[fi] && E.fonts[fi].presets[pi]);
 };
-// null voice: the default, GM tubular bells once the soundfont has loaded, the built-in tubular bells before
-const defaultVoice = () => (E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v0");
+// null voice: the instrument's default. A furin's is the built-in FURIN (v6); a tube chime's is GM tubular bells once
+// the soundfont has loaded, the built-in tubular bells before.
+const defaultVoice = instrument => (instrument === "furin" ? "v6" : E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v0");
+const INSTRUMENT_TEXT = { chime: "TUBE CHIME", furin: "FURIN BELL" };
 
 // ---------- units ----------
 // A unit is plain data; SOUND is kept for the visit only and never stored (browser audio starts only from a tap).
@@ -168,7 +170,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
 
   const scale = useMemo(() => E.tubeNotes(SCALE_BY_NAME[unit.scale].deg, unit.tubes), [unit.scale, unit.tubes]);
   const cutoff = E.cutoffHz(unit.cutX);
-  const voice = unit.voice || defaultVoice();
+  const furin = unit.instrument === "furin";
+  const voice = unit.voice || defaultVoice(unit.instrument);
   const channelRef = useRef(unit.channel);
   const monoRef = useRef(false);
   monoRef.current = unit.midiMode === "mono";
@@ -176,8 +179,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   decayRef.current = unit.decay;
 
   // push parameters into the engine
-  useEffect(() => { chime.setParams({ volume: unit.volume, tubes: unit.tubes, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
-    [chime, unit.volume, unit.tubes, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
+  useEffect(() => { chime.setParams({ instrument: unit.instrument, volume: unit.volume, tubes: unit.tubes, wind: unit.wind, decay: unit.decay, cutX: unit.cutX, q: unit.q, root: unit.root, scale }); },
+    [chime, unit.instrument, unit.volume, unit.tubes, unit.wind, unit.decay, unit.cutX, unit.q, unit.root, scale]);
   // where it is heard; the engine plays it on 1-2 while the device lacks those channels
   useEffect(() => { chime.setParams({ output: E.outputOf(unit.output) }); }, [chime, unit.output]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -285,7 +288,9 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
           className="box-content touch-none border border-foreground"
           style={{ width: canvasPx, height: canvasPx * E.H / E.W }}
           onPointerDown={onCanvasDown}
-          aria-label={`Wind chime: ${TUBE_WORDS[unit.tubes]} tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it.`}
+          aria-label={furin
+            ? "Furin bell: a bell on a hook, with a clapper inside and a paper strip that catches the wind. Tap the bell to strike it."
+            : `Wind chime: ${TUBE_WORDS[unit.tubes]} tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it.`}
         />
         {/* the four round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
         <Button aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className={`${ROUND} top-2.5 left-2.5`}>
@@ -308,12 +313,21 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
           </PopoverTrigger>
           <PopoverContent aria-label={`SETTINGS ${name}`}>
             <div className="grid gap-3.5">
+              <Param id={`${p}-p-inst`} label="INSTRUMENT" value={furin ? "ONE NOTE" : `${unit.tubes} TUBES`}>
+                <ParamSelect id={`${p}-p-inst`} value={unit.instrument} display={INSTRUMENT_TEXT[unit.instrument]} onChange={v => set({ instrument: v })}>
+                  <SelectItem value="chime">TUBE CHIME</SelectItem>
+                  <SelectItem value="furin">FURIN BELL</SelectItem>
+                </ParamSelect>
+              </Param>
               <Param id={`${p}-p-volume`} label="VOLUME" value={unit.volume.toFixed(2)}>
                 <ParamSlider id={`${p}-p-volume`} min={0} max={1} step={0.01} value={unit.volume} onChange={v => set({ volume: v })} />
               </Param>
-              <Param id={`${p}-p-tubes`} label="TUBES" value={String(unit.tubes)}>
-                <ParamSlider id={`${p}-p-tubes`} min={E.MIN_TUBES} max={E.MAX_TUBES} step={1} ticks value={unit.tubes} onChange={v => set({ tubes: v })} />
-              </Param>
+              {/* a furin plays its root alone: no tubes or scale (their values are kept for switching back) */}
+              {!furin && (
+                <Param id={`${p}-p-tubes`} label="TUBES" value={String(unit.tubes)}>
+                  <ParamSlider id={`${p}-p-tubes`} min={E.MIN_TUBES} max={E.MAX_TUBES} step={1} ticks value={unit.tubes} onChange={v => set({ tubes: v })} />
+                </Param>
+              )}
               <Param id={`${p}-p-wind`} label="WIND" value={unit.wind.toFixed(2)}>
                 <ParamSlider id={`${p}-p-wind`} min={0} max={1} step={0.01} value={unit.wind} onChange={v => set({ wind: v })} />
               </Param>
@@ -331,9 +345,11 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                   {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
                 </ParamSelect>
               </Param>
-              <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
-              </Param>
+              {!furin && (
+                <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
+                  <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
+                </Param>
+              )}
               <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
                 <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} onChange={v => set({ voice: v })} />
               </Param>
@@ -364,8 +380,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       </div>
       {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
       <div id={`${p}-notes`} hidden={!unit.notes}>
-        <div role="group" aria-label="TUBES" className="tubes grid max-w-full bg-background border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${unit.tubes}, minmax(0, 1fr))` }}>
-          {scale.map((s, i) => {
+        <div role="group" aria-label="TUBES" className="tubes grid max-w-full bg-background border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${furin ? 1 : unit.tubes}, minmax(0, 1fr))` }}>
+          {(furin ? [0] : scale).map((s, i) => {
             const m = unit.root + s;
             return (
               // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
@@ -376,9 +392,9 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             );
           })}
         </div>
-        {/* what the pads play: the voice (no program number) and the scale */}
+        {/* what the pads play: the voice (no program number) and the scale, or FURIN BELL */}
         <p className="m-0 max-w-full truncate border border-t-0 border-foreground bg-background px-2 py-1 text-[10px] leading-[1.3]" style={{ width: canvasPx + 2 }}>
-          {voiceItem.name} · {unit.scale}
+          {voiceItem.name} · {furin ? "FURIN BELL" : unit.scale}
         </p>
       </div>
     </motion.section>
@@ -620,7 +636,7 @@ export default function Chime() {
   // program change and CCs follow from each unit's linkSeq effects
   const choosePort = id => { M.selectOutput(id); };
   // one test note per unit: its first tube, on its channel
-  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0])); };
+  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + (u.instrument === "furin" ? 0 : E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0]))); };
   const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
@@ -768,7 +784,7 @@ export default function Chime() {
                   <div className={ROW}>
                     <Button disabled={!midi.port} onClick={onTestNote}>TEST NOTE</Button>
                     <Button onClick={onPanic}>PANIC</Button>
-                    <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Each chime sends on the channel in its settings. Note length follows its DECAY. TEST NOTE plays every chime&apos;s first tube. PANIC sends All Notes Off on every chime&apos;s channel.</span>
+                    <span className={`${NOTE} min-w-0 [overflow-wrap:anywhere]`}>Each chime sends on the channel in its settings. Note length follows its DECAY. TEST NOTE plays every chime&apos;s first tube (a furin&apos;s root). PANIC sends All Notes Off on every chime&apos;s channel.</span>
                   </div>
                 </>
               )}

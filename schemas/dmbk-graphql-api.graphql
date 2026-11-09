@@ -150,6 +150,14 @@ type ChimeComposition implements Node {
   units: [ChimeUnit!]!
 }
 
+"""
+The instrument a unit is: the tube chime, or the furin bell (one note, its root).
+"""
+enum ChimeInstrument {
+  CHIME
+  FURIN
+}
+
 enum ChimeMidiMode {
   MONO
   POLY
@@ -165,6 +173,9 @@ type ChimeUnit {
 
   """DECAY in tenths of a second, 3–120."""
   decay: Int!
+
+  """CHIME for units saved before instruments existed."""
+  instrument: ChimeInstrument!
   midiMode: ChimeMidiMode!
 
   """Whether the tube-notes drawer is shown."""
@@ -203,7 +214,9 @@ type ChimeUnit {
   y: Int!
 }
 
-"""One chime to save. Every field is required except `voice`."""
+"""
+One chime to save. Every field is required except `voice` and `instrument`.
+"""
 input ChimeUnitInput {
   """MIDI channel, 1–16."""
   channel: Int!
@@ -213,6 +226,9 @@ input ChimeUnitInput {
 
   """DECAY in tenths of a second, 3–120."""
   decay: Int!
+
+  """Omitted means CHIME."""
+  instrument: ChimeInstrument
   midiMode: ChimeMidiMode!
   notes: Boolean!
 

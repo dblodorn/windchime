@@ -48,7 +48,7 @@ const RowFragment = graphql`
     title
     unitCount
     createdAt
-    units { volume tubes wind decay cutoff resonance root scale voice channel midiMode notes x y rank }
+    units { instrument volume tubes wind decay cutoff resonance root scale voice channel midiMode notes x y rank }
   }
 `;
 
