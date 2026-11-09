@@ -4,7 +4,7 @@
 
 - [x] 1.1 In `src/lib/chime/shape.ts`, change `INT_FIELDS.root` from `[48, 84]` to `[0, 119]`. Update any tests or fixtures that pin the old limits.
 - [x] 1.2 Check that `title.ts` and `fingerprint.ts` handle roots 0–119. The fingerprint must be unchanged for existing roots.
-- [ ] 1.3 Open the PR and merge it. The user runs `npm run chime:collection -- --apply`, with `dbAdmin` granted to `graphql-api` for that step, then deploys.
+- [x] 1.3 Open the PR and merge it. The user runs `npm run chime:collection -- --apply`, with `dbAdmin` granted to `graphql-api` for that step, then deploys.
 
 ## 2. Engine
 
