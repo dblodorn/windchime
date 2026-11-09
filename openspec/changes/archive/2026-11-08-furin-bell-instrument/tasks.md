@@ -67,7 +67,7 @@
   - A pre-change link opens as tube chimes.
   - SAVE sends `instrument: FURIN` (stubbed route), and a loaded furin comes back with the same link.
 - [x] 7.5 Regression: rerun the existing Playwright suites (t3, t5, t5b and the others) and check that they still pass.
-- [ ] 7.6 Check by hand on real devices: how the furin sounds (voice, register, decay), how it looks at 1× and 2×, and how it moves in light and strong wind.
+- [x] 7.6 Check by hand on real devices: how the furin sounds (voice, register, decay), how it looks at 1× and 2×, and how it moves in light and strong wind.
 
 ## 8. Docs
 
