@@ -36,7 +36,7 @@ export function rank(groups, query, byGroup = false) {
   return out
 }
 
-function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled }) {
+function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled, contentStyle }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [hi, setHi] = React.useState(0)
@@ -103,7 +103,7 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled 
         <span className="pointer-events-none shrink-0" aria-hidden>▾</span>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Content role="presentation" data-slot="search-select-content" side="bottom" align="start" sideOffset={2} collisionPadding={16}
+        <PopoverPrimitive.Content role="presentation" data-slot="search-select-content" style={contentStyle} side="bottom" align="start" sideOffset={2} collisionPadding={16}
           onOpenAutoFocus={e => {
             e.preventDefault()
             // phones and tablets: don't raise the on-screen keyboard over the list until the field is tapped

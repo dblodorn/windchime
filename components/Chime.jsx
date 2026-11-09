@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
+import * as C from "../lib/colors";
 import * as M from "../lib/midiout";
 import * as Sh from "../lib/share";
 import { Button } from "@/components/ui/button";
@@ -65,12 +66,16 @@ function ParamSlider({ id, value, onChange, ...range }) {
   return <Slider id={id} value={[value]} onValueChange={([v]) => onChange(v)} aria-labelledby={`${id}-label`} {...range} />;
 }
 
+// a unit's ink style (C.inkStyle), for popups that portal out of the unit and so don't inherit its tokens
+const InkContext = createContext(undefined);
+
 // `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render
 function ParamSelect({ id, value, display, onChange, disabled, children }) {
+  const ink = useContext(InkContext);
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger id={id} aria-labelledby={`${id}-label`}><SelectValue>{display}</SelectValue></SelectTrigger>
-      <SelectContent>{children}</SelectContent>
+      <SelectContent style={ink}>{children}</SelectContent>
     </Select>
   );
 }
@@ -168,6 +173,10 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   if (!chimeRef.current) chimeRef.current = E.createChime();
   const chime = chimeRef.current;
   const set = useCallback(patch => onChange(id, patch), [id, onChange]);
+  // the unit draws in its MIDI channel's ink: the canvas through the engine, everything else through the theme tokens
+  const inkHex = C.inkOf(unit.channel).hex;
+  const ink = C.inkStyle(inkHex);
+  useEffect(() => chime.setInk(inkHex), [chime, inkHex]);
 
   const scale = useMemo(() => E.tubeNotes(SCALE_BY_NAME[unit.scale].deg, unit.tubes), [unit.scale, unit.tubes]);
   const cutoff = E.cutoffHz(unit.cutX);
@@ -280,7 +289,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z }}
+      style={{ x, y, zIndex: unit.z, ...ink }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
@@ -314,7 +323,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
               <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent aria-label={`SETTINGS ${name}`}>
+          <PopoverContent aria-label={`SETTINGS ${name}`} style={ink}>
+            <InkContext.Provider value={ink}>
             <div className="grid gap-3.5">
               <Param id={`${p}-p-inst`} label="INSTRUMENT" value={furin ? "ONE NOTE" : `${unit.tubes} TUBES`}>
                 <ParamSelect id={`${p}-p-inst`} value={unit.instrument} display={INSTRUMENT_TEXT[unit.instrument]} onChange={v => set({ instrument: v })}>
@@ -353,11 +363,11 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
               </Param>
               {!furin && (
                 <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                  <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
+                  <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup contentStyle={ink} onChange={v => set({ scale: v })} />
                 </Param>
               )}
               <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
-                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} onChange={v => set({ voice: v })} />
+                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} contentStyle={ink} onChange={v => set({ voice: v })} />
               </Param>
               {/* not on phones and tablets, which play through their own output */}
               <div className="touch:hidden">
@@ -381,6 +391,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
               </Param>
               {count > 1 && <div className={ROW}><Button onClick={() => onRemove(id)}>REMOVE</Button></div>}
             </div>
+            </InkContext.Provider>
           </PopoverContent>
         </Popover>
       </div>
@@ -411,6 +422,7 @@ export default function Chime() {
   const mainRef = useRef(null);
   // the server renders one default unit; the stored list replaces it on mount
   const [units, setUnits] = useState(() => [defaultUnit()]);
+  const usedChannels = useMemo(() => new Set(units.map(u => u.channel)), [units]);
   const loaded = useRef(false);
   const ownHash = useRef(null);
   const [shared, setShared] = useState(false);
@@ -797,6 +809,20 @@ export default function Chime() {
               {midiMsg && <p className={NOTE}>{midiMsg}</p>}
               {midi.error && <p className={NOTE}>{midi.error}</p>}
               {midiReady && !midiPorts.length && <p className={NOTE}>No MIDI outputs found. Plug in an interface or start a virtual port (IAC Driver on a Mac, loopMIDI on Windows).</p>}
+              {/* each channel's ink, as the units draw it; the channels units are on are underlined */}
+              <Param id="m-ch" label="CHANNELS" value={`${usedChannels.size} IN USE`}>
+                <ul aria-labelledby="m-ch-label" className="m-0 mt-2 grid list-none grid-cols-8 gap-1.5 p-0">
+                  {C.CHANNEL_INKS.map((ink, i) => {
+                    const used = usedChannels.has(i + 1);
+                    return (
+                      <li key={i} aria-label={`${i + 1} ${ink.name}${used ? " IN USE" : ""}`} className="grid justify-items-center gap-0.5 text-[10px] tabular-nums">
+                        <span aria-hidden="true" className="block aspect-square w-full" style={{ background: ink.hex }} />
+                        <span aria-hidden="true" className={used ? "underline underline-offset-2" : undefined}>{i + 1}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Param>
             </div>
         </DialogContent>
       </Dialog>
