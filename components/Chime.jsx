@@ -17,7 +17,6 @@ import { SearchSelect } from "@/components/ui/search-select";
 import { Slider } from "@/components/ui/slider";
 
 const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
-const ROOTS = Array.from({ length: 37 }, (_, k) => 48 + k);
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
 const SCALE_BY_NAME = Object.fromEntries(E.SCALE_LIST.map(s => [s.name, s]));
 // SCALE's options for SearchSelect: by group, in catalog order
@@ -30,7 +29,9 @@ const store = {
   remove(k) { try { localStorage.removeItem("windchime." + k); } catch (e) {} },
 };
 
-const rootText = m => `${E.noteName(m)}   ${E.mtof(m).toFixed(1)} HZ`;
+// ROOT picks the note, OCTAVE the octave (−1 to 8, octave 4 holds middle C); the unit keeps one MIDI note
+const octaveOf = m => Math.floor(m / 12) - 1;
+const rootOf = (note, octave) => 12 * (octave + 1) + note;
 const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
 const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
 // OUTPUT "3-4" shows as "3–4"; the options are the pairs, then the single channels, up to the device's count
@@ -343,9 +344,12 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                 <ParamSlider id={`${p}-p-res`} min={0.5} max={18} step={0.1} value={unit.q} onChange={v => set({ q: v })} />
               </Param>
               <Param id={`${p}-p-root`} label="ROOT" value={E.noteName(unit.root)}>
-                <ParamSelect id={`${p}-p-root`} value={String(unit.root)} display={rootText(unit.root)} onChange={v => set({ root: +v })}>
-                  {ROOTS.map(m => <SelectItem key={m} value={String(m)}>{rootText(m)}</SelectItem>)}
+                <ParamSelect id={`${p}-p-root`} value={String(unit.root % 12)} display={E.NOTE_NAMES[unit.root % 12]} onChange={v => set({ root: rootOf(+v, octaveOf(unit.root)) })}>
+                  {E.NOTE_NAMES.map((n, k) => <SelectItem key={n} value={String(k)}>{n}</SelectItem>)}
                 </ParamSelect>
+              </Param>
+              <Param id={`${p}-p-octave`} label="OCTAVE" value={String(octaveOf(unit.root))}>
+                <ParamSlider id={`${p}-p-octave`} min={-1} max={8} step={1} ticks value={octaveOf(unit.root)} onChange={v => set({ root: rootOf(unit.root % 12, v) })} />
               </Param>
               {!furin && (
                 <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
@@ -384,7 +388,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       <div id={`${p}-notes`} hidden={!unit.notes}>
         <div role="group" aria-label="TUBES" className="tubes grid max-w-full bg-background border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${furin ? 1 : unit.tubes}, minmax(0, 1fr))` }}>
           {(furin ? [0] : scale).map((s, i) => {
-            const m = unit.root + s;
+            const m = E.foldNote(unit.root + s);
             return (
               // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
               <button type="button" key={i} ref={el => (cellRefs.current[i] = el)}
@@ -638,7 +642,7 @@ export default function Chime() {
   // program change and CCs follow from each unit's linkSeq effects
   const choosePort = id => { M.selectOutput(id); };
   // one test note per unit: its first tube, on its channel
-  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, u.root + (u.instrument === "furin" ? 0 : E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0]))); };
+  const onTestNote = () => { units.forEach(u => M.testNote(u.channel, E.foldNote(u.root + (u.instrument === "furin" ? 0 : E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0])))); };
   const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
