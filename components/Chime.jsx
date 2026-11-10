@@ -158,7 +158,7 @@ function loadUnits() {
 const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
-const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront }) {
+const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
   const canvasRef = useRef(null);
@@ -289,7 +289,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z, ...ink }}
+      style={{ x, y, zIndex: unit.z, opacity: faded ? 0.25 : 1, ...ink }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
@@ -423,6 +423,13 @@ export default function Chime() {
   // the server renders one default unit; the stored list replaces it on mount
   const [units, setUnits] = useState(() => [defaultUnit()]);
   const usedChannels = useMemo(() => new Set(units.map(u => u.channel)), [units]);
+  // channel focus (the lower-left strip): a channel number or null, never stored. `focused` drops a focus whose
+  // channel is gone or that the hidden strip (one channel) can no longer show, and the effect forgets it
+  const [focus, setFocus] = useState(null);
+  const focused = focus != null && usedChannels.size > 1 && usedChannels.has(focus) ? focus : null;
+  useEffect(() => { if (focused == null && focus != null) setFocus(null); }, [focus, focused]);
+  const focusRef = useRef(null);
+  focusRef.current = focused;
   const loaded = useRef(false);
   const ownHash = useRef(null);
   const [shared, setShared] = useState(false);
@@ -532,6 +539,13 @@ export default function Chime() {
     const order = [...next].sort((a, b) => a.z - b.z).map(v => v.id);
     return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
   }), []);
+
+  // any press inside a unit brings it to the front; a press on a faded unit also ends channel focus
+  const pressUnit = useCallback(id => {
+    front(id);
+    const f = focusRef.current, u = unitsRef.current.find(v => v.id === id);
+    if (f != null && u && u.channel !== f) setFocus(null);
+  }, [front]);
 
   // bundled General MIDI soundfont
   useEffect(() => {
@@ -684,9 +698,39 @@ export default function Chime() {
       <div className="isolate grid size-full place-items-center">
         {units.map((u, i) => (
           <ChimeUnit key={u.id} unit={u} index={i} count={units.length} mainRef={mainRef} fontsVersion={fontsVersion} groups={groups} outChannels={outChannels}
-            midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={front} />
+            midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={pressUnit}
+            faded={focused != null && u.channel !== focused} />
         ))}
       </div>
+
+      {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
+          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units fade to 25%), again to end it. Below sm it sits above
+          the button row, which leaves it no room beside. */}
+      {usedChannels.size > 1 && (
+        <div
+          role="group"
+          aria-label="ACTIVE CHANNELS"
+          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] max-sm:bottom-[calc(68px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px]"
+        >
+          {[...usedChannels].sort((a, b) => a - b).map(ch => {
+            const ink = C.inkOf(ch), on = focused === ch;
+            return (
+              <button
+                key={ch}
+                type="button"
+                aria-label={`${ch} ${ink.name}`}
+                aria-pressed={on}
+                onClick={() => setFocus(on ? null : ch)}
+                style={{ background: ink.hex }}
+                className="relative grid size-[22px] cursor-pointer place-items-center border-0 p-0 text-[10px] leading-none text-white tabular-nums focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3"
+              >
+                {ch}
+                {on && <span aria-hidden="true" className="absolute inset-[2px] border border-white" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* MENU (upper right) opens the COMPOSITIONS panel: SAVE and the public list of saved compositions. The one icon
           outside the units' round buttons, by request; square like SHARE and MIDI. */}
