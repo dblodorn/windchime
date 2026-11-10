@@ -23,12 +23,11 @@ The page SHALL show a MENU button fixed to the upper-right corner of the viewpor
 ### Requirement: COMPOSITIONS panel
 MENU SHALL open a panel named "COMPOSITIONS" that covers the full height of the viewport at the right edge. It SHALL be at most 360 CSS px wide and never wider than the viewport, white, with a 1px black left border, and no tint over the rest of the page. From top to bottom it SHALL hold:
 - its heading;
-- a SAVE button;
 - the list of saved compositions;
 - a MORE button while more compositions exist;
-- a footer.
+- a footer holding the SAVE button (and its message) above two links.
 
-The heading SHALL stay at the top of the panel. The footer SHALL stay at the bottom edge and span the panel's full width, with a 1px black rule along its top, its text clear of the device's safe-area inset, and no more than 40 CSS px tall. It SHALL hold two underlined text links, at opposite ends: CHANGELOG on the left, which opens the `/changelog` page, and GITHUB on the right, which opens https://github.com/dblodorn/windchime in a new tab. Only the area between the heading and the footer (SAVE, the list and MORE) SHALL scroll when its content is taller than the space it has. Scrolling that area SHALL NOT clip the dashed keyboard focus outline of the controls inside it. Escape, a press outside the panel, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
+The heading SHALL stay at the top of the panel, spanning its full width with a 1px black rule under it, and SHALL hold a CLOSE text button at its right, the same size and style as the CLOSE buttons of the MIDI OUT and AUDIO OUT dialogs. The list SHALL scroll up under that rule. The footer SHALL stay at the bottom edge and span the panel's full width, with a 1px black rule along its top and its content clear of the device's safe-area inset. Under SAVE it SHALL hold two underlined text links, at opposite ends: CHANGELOG on the left, which opens the `/changelog` page, and GITHUB on the right, which opens https://github.com/dblodorn/windchime in a new tab. Only the area between the heading and the footer (the list and MORE) SHALL scroll when its content is taller than the space it has. Scrolling that area SHALL NOT clip the dashed keyboard focus outline of the controls inside it. Escape, a press outside the panel, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
 
 #### Scenario: Open and close
 - **WHEN** the user opens the panel, then presses Escape
@@ -40,7 +39,7 @@ The heading SHALL stay at the top of the panel. The footer SHALL stay at the bot
 
 #### Scenario: Footer stays put
 - **WHEN** the list is taller than the panel and the user scrolls it to the end
-- **THEN** the heading stays at the top, the CHANGELOG footer stays at the bottom, and the rows scroll between them
+- **THEN** the heading stays at the top, the footer with SAVE and the links stays at the bottom, and the rows scroll between them
 
 #### Scenario: Open the changelog
 - **WHEN** the user activates CHANGELOG in the footer

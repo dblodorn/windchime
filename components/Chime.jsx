@@ -146,6 +146,11 @@ const Compositions = dynamic(() => import("./Compositions"), {
   ssr: false,
   loading: () => <p className="m-0 text-[11px] tracking-[.08em] uppercase">LOADING…</p>,
 });
+// the same chunk; a disabled SAVE holds its place while it loads
+const SaveButton = dynamic(() => import("./Compositions").then(m => m.SaveButton), {
+  ssr: false,
+  loading: () => <Button className="h-11 w-full" disabled>SAVE</Button>,
+});
 function loadUnits() {
   const saved = store.get("units", null);
   if (saved && Array.isArray(saved.units) && saved.units.length) {
@@ -761,18 +766,24 @@ export default function Chime() {
           </Button>
         </SheetTrigger>
         <SheetContent aria-describedby={undefined} className="overflow-hidden">
-          <SheetHeader>
+          {/* edge to edge with a rule under it, like the footer; rows scroll up under the rule */}
+          <SheetHeader className="-mx-4 border-b border-foreground px-4 pb-3.5">
             <SheetTitle>COMPOSITIONS</SheetTitle>
-            <SheetClose asChild><Button className="h-8 px-2.5">CLOSE</Button></SheetClose>
+            <SheetClose asChild><Button>CLOSE</Button></SheetClose>
           </SheetHeader>
-          {/* only the middle scrolls; 4 px of padding (cancelled by negative margins) keeps focus outlines unclipped */}
-          <div className="-m-1 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto p-1">
-            <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
+          {/* only the middle scrolls, between the two rules: its -mt and the footer's cancel the sheet's gaps, its top
+              padding gives the first row the same 14 px at rest, and 4 px at the sides and bottom (cancelled by -mx)
+              keeps focus outlines unclipped; no scrollbar */}
+          <div className="-mx-1 -mt-3.5 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto px-1 pt-3.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Compositions opening={menuOpenings} onOpen={openSaved} />
           </div>
           {/* edge to edge: the negative margins cancel the sheet's padding, the bottom one its safe-area padding too */}
-          <footer className="-mx-4 -mb-[calc(16px+env(safe-area-inset-bottom))] flex justify-between border-t border-foreground px-4 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] text-[11px] tracking-[.08em]">
-            <Link href="/changelog" className={FOOT_LINK}>CHANGELOG</Link>
-            <a href="https://github.com/dblodorn/windchime" target="_blank" rel="noreferrer" className={FOOT_LINK}>GITHUB</a>
+          <footer className="-mx-4 -mt-3.5 -mb-[calc(16px+env(safe-area-inset-bottom))] grid gap-3.5 border-t border-foreground px-4 pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] text-[11px] tracking-[.08em]">
+            <SaveButton getUnits={getUnits} />
+            <div className="flex justify-between">
+              <Link href="/changelog" className={FOOT_LINK}>CHANGELOG</Link>
+              <a href="https://github.com/dblodorn/windchime" target="_blank" rel="noreferrer" className={FOOT_LINK}>GITHUB</a>
+            </div>
           </footer>
         </SheetContent>
       </Sheet>
