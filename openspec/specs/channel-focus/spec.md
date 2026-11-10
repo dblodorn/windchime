@@ -6,7 +6,7 @@ Shows which MIDI channels the chime units are using, in a strip of ink squares i
 ## Requirements
 
 ### Requirement: Active-channels strip
-While the units on the page use two or more distinct MIDI channels, the page SHALL show an active-channels strip fixed to its lower-left corner, 16 CSS px from the left and bottom edges (plus the safe-area inset), above every unit. The strip SHALL hold one square button per channel in use, in ascending channel order. Each square SHALL be 22 × 22 CSS px, filled with that channel's ink (see `channel-colors`), with no gap between squares, and SHALL show the channel number in white, centered horizontally and vertically, in the UI font at a size whose widest number (`16`) fits inside the square. The squares SHALL fill a grid 8 squares wide and 2 squares tall (176 × 44 CSS px, the height of the lower-right buttons), left to right, wrapping to a second row after the eighth square. The rows SHALL sit at the bottom of the strip, so a single row lines up with the bottom of the lower-right buttons. While only one channel is in use, the strip MUST NOT be shown.
+While the units on the page use two or more distinct MIDI channels, the page SHALL show an active-channels strip fixed to its lower-left corner, 16 CSS px from the left and bottom edges (plus the safe-area inset), above every unit. The strip SHALL hold one square button per channel in use, in ascending channel order. Each square SHALL be 22 × 22 CSS px, filled with that channel's ink (see `channel-colors`), with no gap between squares, and SHALL show the channel number in white, centered horizontally and vertically, in the UI font at a size whose widest number (`16`) fits inside the square. The squares SHALL fill a grid 2 squares tall and up to 8 squares wide (at most 176 × 44 CSS px; the height of the lower-right buttons), column by column: the first square at the top left, the second under it, the third at the top of the second column, and so on. The strip is always 44 CSS px tall and as wide as its columns. While only one channel is in use, the strip MUST NOT be shown.
 
 The strip SHALL be a group named "ACTIVE CHANNELS". Each square SHALL be a button named by its channel number and ink name (for example "3 BLUE"), and SHALL expose whether its channel is focused as a pressed state. Squares SHALL activate with a click, a tap, Enter or Space, and SHALL show the dashed keyboard focus outline. They do not invert on hover.
 
@@ -23,9 +23,10 @@ The strip SHALL be a group named "ACTIVE CHANNELS". Each square SHALL be a butto
 - **WHEN** the page has one unit on channel 1 and the user activates COPY
 - **THEN** the strip appears with squares 1 and 2
 
-#### Scenario: Wraps after eight
-- **WHEN** the page has units on 10 different channels
-- **THEN** the first 8 squares fill the top row of the strip and the last 2 start the bottom row, at its left, and the strip is 44 px tall
+#### Scenario: Packs down the columns
+- **WHEN** the page has units on channels 1, 2, 3, 5 and 9
+- **THEN** squares 1 and 2 are the first column (1 on top), 3 and 5 the second, and 9 is at the top of the third column
+- **AND** the strip is 44 px tall and 66 px wide
 
 #### Scenario: Strip height
 - **WHEN** the strip is shown on a wide viewport
@@ -43,7 +44,7 @@ On viewports narrower than 640 CSS px, where the strip doesn't fit to the left o
 - **THEN** the strip sits in the lower-left corner, its bottom edge level with the SHARE button's bottom edge
 
 ### Requirement: Channel focus mode
-Activating a square SHALL focus its channel: every unit on another channel SHALL be shown at 35% opacity, and every unit on the focused channel SHALL stay fully opaque. The focused channel's square SHALL show as pressed (exposed as pressed, and drawn with a 1 px white frame inset 2 px inside the square). At most one channel SHALL be focused at a time:
+Activating a square SHALL focus its channel: every unit on another channel SHALL be shown at 25% opacity, and every unit on the focused channel SHALL stay fully opaque. The focused channel's square SHALL show as pressed (exposed as pressed, and drawn with a 1 px white frame inset 2 px inside the square). At most one channel SHALL be focused at a time:
 - activating the focused channel's square ends focus mode
 - activating another channel's square moves focus to that channel
 
@@ -51,7 +52,7 @@ Faded units SHALL stay fully usable. Focus mode SHALL change only opacity: it MU
 
 #### Scenario: Focus a channel
 - **WHEN** the page has units on channels 1, 2 and 2 and the user activates square 2
-- **THEN** the channel 1 unit's computed opacity is 0.35 and both channel 2 units' computed opacity is 1
+- **THEN** the channel 1 unit's computed opacity is 0.25 and both channel 2 units' computed opacity is 1
 - **AND** square 2 is pressed and square 1 is not
 
 #### Scenario: Toggle off
@@ -60,7 +61,7 @@ Faded units SHALL stay fully usable. Focus mode SHALL change only opacity: it MU
 
 #### Scenario: Switch channels
 - **WHEN** channel 2 is focused and the user activates square 1
-- **THEN** the channel 1 unit is fully opaque, both channel 2 units are at 0.35, and only square 1 is pressed
+- **THEN** the channel 1 unit is fully opaque, both channel 2 units are at 0.25, and only square 1 is pressed
 
 #### Scenario: Faded units keep playing
 - **WHEN** a faded unit's SOUND is on and the wind strikes its tubes

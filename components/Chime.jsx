@@ -289,7 +289,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z, opacity: faded ? 0.35 : 1, ...ink }}
+      style={{ x, y, zIndex: unit.z, opacity: faded ? 0.25 : 1, ...ink }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
@@ -703,14 +703,14 @@ export default function Chime() {
         ))}
       </div>
 
-      {/* the active channels, lower left, while units use two or more: one ink square each, 8 to a row, rows at the
-          bottom; a square focuses its channel (other units fade to 35%), again to end it. Below sm it sits above
+      {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
+          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units fade to 25%), again to end it. Below sm it sits above
           the button row, which leaves it no room beside. */}
       {usedChannels.size > 1 && (
         <div
           role="group"
           aria-label="ACTIVE CHANNELS"
-          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] max-sm:bottom-[calc(68px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-cols-[repeat(8,22px)] auto-rows-[22px] content-end"
+          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] max-sm:bottom-[calc(68px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px]"
         >
           {[...usedChannels].sort((a, b) => a - b).map(ch => {
             const ink = C.inkOf(ch), on = focused === ch;
