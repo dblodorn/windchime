@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CHANGELOG } from "@/lib/changelog";
+import { Badge } from "@/components/ui/badge";
+import { CHANGELOG, TYPES } from "@/lib/changelog";
 
 export const metadata = { title: "Changelog · Chime" };
 
@@ -12,14 +13,14 @@ export default function ChangelogPage() {
     <main className="grid max-w-[560px] gap-3.5">
       <header className="flex items-center justify-between gap-3">
         <h1 className="m-0 text-[11px] font-normal tracking-[.08em]">CHANGELOG</h1>
-        <Link href="/" className={BUTTON}>CHIME</Link>
+        <Link href="/" className={BUTTON}>BACK</Link>
       </header>
       <ul className="m-0 grid list-none p-0">
         {CHANGELOG.map((e, i) => (
-          <li key={i} className="grid gap-0.5 border-t border-foreground py-2">
-            <span className={`flex gap-3 ${SMALL}`}>
+          <li key={i} className="grid gap-0.5 border-t border-dashed border-foreground py-2">
+            <span className={`flex items-center gap-3 ${SMALL}`}>
               <time dateTime={e.date}>{e.date}</time>
-              <span>{e.type}</span>
+              <Badge color={TYPES[e.type].hex}>{e.type}</Badge>
             </span>
             <span className="text-[13px] [overflow-wrap:anywhere]">{e.text}</span>
           </li>

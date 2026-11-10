@@ -159,6 +159,9 @@ function loadUnits() {
 const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
+// the COMPOSITIONS footer's text links
+const FOOT_LINK = "text-foreground underline underline-offset-3 hover:no-underline focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3";
+
 const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
@@ -766,8 +769,10 @@ export default function Chime() {
           <div className="-m-1 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto p-1">
             <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
           </div>
-          <footer className="flex justify-end border-t border-foreground pt-3">
-            <Button asChild className="h-8 px-2.5"><Link href="/changelog">CHANGELOG</Link></Button>
+          {/* edge to edge: the negative margins cancel the sheet's padding, the bottom one its safe-area padding too */}
+          <footer className="-mx-4 -mb-[calc(16px+env(safe-area-inset-bottom))] flex justify-between border-t border-foreground px-4 pt-2 pb-[calc(8px+env(safe-area-inset-bottom))] text-[11px] tracking-[.08em]">
+            <Link href="/changelog" className={FOOT_LINK}>CHANGELOG</Link>
+            <a href="https://github.com/dblodorn/windchime" target="_blank" rel="noreferrer" className={FOOT_LINK}>GITHUB</a>
           </footer>
         </SheetContent>
       </Sheet>
