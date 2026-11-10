@@ -49,7 +49,7 @@ Everything in a chime unit that is black on channel 1 SHALL be drawn in the unit
 - the unit's SETTINGS popover: text, dotted leaders, borders, controls, highlighted and selected options, inverted states and the focus outline
 - every list opened from that popover (the selects, and the SCALE and SOUNDFONT search lists)
 
-A unit MUST use exactly two colors, its ink and white (with reduced opacity of the ink allowed for disabled controls). Units on the same channel SHALL share an ink.
+A unit MUST use exactly two colors, its ink and white (with reduced opacity of the ink allowed for disabled controls); while another channel is focused, a 25% tint of the ink replaces the ink (see `channel-focus`). Units on the same channel SHALL share an ink.
 
 #### Scenario: A unit on channel 3
 - **WHEN** a unit's CHANNEL is 3 and its NOTES and SETTINGS are open

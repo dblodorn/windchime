@@ -174,7 +174,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const chime = chimeRef.current;
   const set = useCallback(patch => onChange(id, patch), [id, onChange]);
   // the unit draws in its MIDI channel's ink: the canvas through the engine, everything else through the theme tokens
-  const inkHex = C.inkOf(unit.channel).hex;
+  // while another channel is focused the unit draws in a 25% tint of its ink, still opaque on white
+  const inkHex = faded ? C.tint(C.inkOf(unit.channel).hex, 0.25) : C.inkOf(unit.channel).hex;
   const ink = C.inkStyle(inkHex);
   useEffect(() => chime.setInk(inkHex), [chime, inkHex]);
 
@@ -289,7 +290,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z, opacity: faded ? 0.25 : 1, ...ink }}
+      style={{ x, y, zIndex: unit.z, ...ink }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
@@ -705,7 +706,7 @@ export default function Chime() {
 
       {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
           (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units
-          fade to 25%), again to end it. Below sm it turns upright, 2 wide and up to 8 tall, packed left to right and up
+          pale to a 25% tint of their ink), again to end it. Below sm it turns upright, 2 wide and up to 8 tall, packed left to right and up
           from the lower left (flex wrap-reverse), and the button row narrows to leave it room. */}
       {usedChannels.size > 1 && (
         <div
