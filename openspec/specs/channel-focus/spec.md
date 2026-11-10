@@ -33,46 +33,56 @@ The strip SHALL be a group named "ACTIVE CHANNELS". Each square SHALL be a butto
 - **THEN** its bottom edge lines up with the bottom edge of the SHARE button, and it is no taller than the SHARE button
 
 ### Requirement: Strip placement on narrow viewports
-On viewports narrower than 640 CSS px, where the strip doesn't fit to the left of the lower-right buttons, the strip SHALL sit left-aligned 8 CSS px above the button row instead of beside it. The strip MUST NOT overlap the lower-right buttons at any viewport width from 320 CSS px up.
+On viewports narrower than 640 CSS px, the strip SHALL stand upright: a grid 2 squares wide (44 CSS px) and up to 8 squares tall, filled left to right and upward from its lower-left corner (the first square at the bottom left, the second at the bottom right, the third above the first, and so on), as tall as its rows. It stays in the lower-left corner, its bottom edge level with the bottom edge of the lower-right buttons. While the strip is shown there, the lower-right buttons SHALL narrow (each at most 76 CSS px, all still equal) so the row ends at least 8 CSS px right of the strip, and every button label SHALL still fit. The strip MUST NOT overlap the lower-right buttons at any viewport width from 320 CSS px up.
 
 #### Scenario: Phone width
-- **WHEN** the viewport is 375 px wide and units use 3 channels
-- **THEN** the strip's bottom edge is 8 px above the top edge of the SHARE button, and it does not overlap any of the lower-right buttons
+- **WHEN** the viewport is 375 px wide and units use channels 1, 2, 3, 5 and 9
+- **THEN** the strip is 44 px wide and 66 px tall, with 1 and 2 on the bottom row, 3 and 5 above them, and 9 at the top left
+- **AND** its bottom edge is level with the SHARE button's bottom edge, and it does not overlap any of the lower-right buttons
+
+#### Scenario: Narrowest width
+- **WHEN** the viewport is 320 px wide, the device has a mouse, and units use two channels
+- **THEN** the SHARE, RESET, AUDIO and MIDI buttons are equal in width, start at least 8 px right of the strip, and show their labels without clipping
 
 #### Scenario: Desktop width
 - **WHEN** the viewport is 1280 px wide and units use 3 channels
-- **THEN** the strip sits in the lower-left corner, its bottom edge level with the SHARE button's bottom edge
+- **THEN** the strip sits in the lower-left corner, 2 squares tall and packed down the columns, its bottom edge level with the SHARE button's bottom edge
 
 ### Requirement: Channel focus mode
-Activating a square SHALL focus its channel: every unit on another channel SHALL be shown at 25% opacity, and every unit on the focused channel SHALL stay fully opaque. The focused channel's square SHALL show as pressed (exposed as pressed, and drawn with a 1 px white frame inset 2 px inside the square). At most one channel SHALL be focused at a time:
+Activating a square SHALL focus its channel: every unit on another channel SHALL be drawn in a 25% tint of its ink (the ink mixed one part to three with white, for example `#f5bfcd` for Carmine and `#bfbfbf` for black) in place of its ink, while staying fully opaque: its white stays solid white, so units behind it don't show through. Every unit on the focused channel SHALL keep its full ink. The focused channel's square SHALL show as pressed (exposed as pressed, and drawn with a 1 px white frame inset 2 px inside the square). At most one channel SHALL be focused at a time:
 - activating the focused channel's square ends focus mode
 - activating another channel's square moves focus to that channel
 
-Faded units SHALL stay fully usable. Focus mode SHALL change only opacity: it MUST NOT change any unit's sound, MIDI output, parameters, position or stacking order.
+Focusing a channel SHALL bring that channel's units above every other unit, keeping their stacking order among themselves; the other units keep theirs. This stacking stays after focus ends and is saved like any other stacking change. Ending focus doesn't change the stacking. Faded units SHALL stay fully usable. Apart from colors and that stacking, focus mode MUST NOT change any unit's sound, MIDI output, parameters or position.
 
 #### Scenario: Focus a channel
 - **WHEN** the page has units on channels 1, 2 and 2 and the user activates square 2
-- **THEN** the channel 1 unit's computed opacity is 0.25 and both channel 2 units' computed opacity is 1
+- **THEN** the channel 1 unit draws in `#bfbfbf` on white (drawing pixels, border and buttons), with computed opacity 1, and both channel 2 units draw in `#d60036`
 - **AND** square 2 is pressed and square 1 is not
+
+#### Scenario: Focused units come to the front
+- **WHEN** three units are stacked bottom to top as A on channel 2, B on channel 1, C on channel 2, and the user activates square 2
+- **THEN** the stacking bottom to top is B, A, C
+- **AND** after square 2 is activated again to end focus, it is still B, A, C
 
 #### Scenario: Toggle off
 - **WHEN** channel 2 is focused and the user activates square 2 again
-- **THEN** every unit's opacity is 1 and no square is pressed
+- **THEN** every unit draws in its full ink and no square is pressed
 
 #### Scenario: Switch channels
 - **WHEN** channel 2 is focused and the user activates square 1
-- **THEN** the channel 1 unit is fully opaque, both channel 2 units are at 0.25, and only square 1 is pressed
+- **THEN** the channel 1 unit draws in black, both channel 2 units draw in `#f5bfcd`, and only square 1 is pressed
 
 #### Scenario: Faded units keep playing
 - **WHEN** a faded unit's SOUND is on and the wind strikes its tubes
 - **THEN** it plays and sends MIDI exactly as when it isn't faded
 
 ### Requirement: Leaving focus mode
-Pressing on a faded unit (on its drawing, its round buttons, its notes drawer or anything inside it) SHALL end focus mode, so every unit is fully opaque again. The press SHALL also do what it does outside focus mode: bring the unit to the front, and strike, drag or activate the control under it. Pressing on a unit of the focused channel, or on empty page, SHALL NOT end focus mode. Focus mode SHALL also end when the focused channel is no longer used by any unit, or when the strip hides because fewer than two channels are in use (after a unit is removed or changes channel, after RESET, or after a share link or saved composition is opened).
+Pressing on a faded unit (on its drawing, its round buttons, its notes drawer or anything inside it) SHALL end focus mode, so every unit draws in its full ink again. The press SHALL also do what it does outside focus mode: bring the unit to the front, and strike, drag or activate the control under it. Pressing on a unit of the focused channel, or on empty page, SHALL NOT end focus mode. Focus mode SHALL also end when the focused channel is no longer used by any unit, or when the strip hides because fewer than two channels are in use (after a unit is removed or changes channel, after RESET, or after a share link or saved composition is opened).
 
 #### Scenario: Press a faded unit
 - **WHEN** channel 2 is focused and the user presses empty paper on the faded channel 1 unit
-- **THEN** every unit is fully opaque, no square is pressed, and the channel 1 unit is in front
+- **THEN** every unit draws in its full ink, no square is pressed, and the channel 1 unit is in front
 
 #### Scenario: Strike through the fade
 - **WHEN** channel 2 is focused and the user taps a tube on the faded channel 1 unit
@@ -88,15 +98,15 @@ Pressing on a faded unit (on its drawing, its round buttons, its notes drawer or
 
 #### Scenario: Reset
 - **WHEN** a channel is focused and the user activates RESET
-- **THEN** the strip hides and the one remaining unit is fully opaque
+- **THEN** the strip hides and the one remaining unit draws in its full ink
 
 ### Requirement: Focus is not stored
 The focused channel MUST NOT be saved in browser storage, share links or saved compositions. Every page load SHALL start with no channel focused.
 
 #### Scenario: Reload clears focus
 - **WHEN** channel 2 is focused and the page is reloaded
-- **THEN** every unit is fully opaque and no square is pressed
+- **THEN** every unit draws in its full ink and no square is pressed
 
-#### Scenario: Link unchanged
-- **WHEN** SHARE is activated with and without a channel focused, for the same units
-- **THEN** the two links are identical
+#### Scenario: Link carries no focus
+- **WHEN** SHARE is activated while a channel is focused, and again after focus ends
+- **THEN** the two links are identical (focusing may have changed the stacking, which links carry, but not the focus itself)

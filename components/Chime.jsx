@@ -174,7 +174,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const chime = chimeRef.current;
   const set = useCallback(patch => onChange(id, patch), [id, onChange]);
   // the unit draws in its MIDI channel's ink: the canvas through the engine, everything else through the theme tokens
-  const inkHex = C.inkOf(unit.channel).hex;
+  // while another channel is focused the unit draws in a 25% tint of its ink, still opaque on white
+  const inkHex = faded ? C.tint(C.inkOf(unit.channel).hex, 0.25) : C.inkOf(unit.channel).hex;
   const ink = C.inkStyle(inkHex);
   useEffect(() => chime.setInk(inkHex), [chime, inkHex]);
 
@@ -289,7 +290,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z, opacity: faded ? 0.25 : 1, ...ink }}
+      style={{ x, y, zIndex: unit.z, ...ink }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
       <div className="relative">
@@ -540,6 +541,17 @@ export default function Chime() {
     return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
   }), []);
 
+  // focusing a channel brings its units above the rest, keeping their order among themselves
+  const frontChannel = useCallback(ch => setUnits(us => {
+    const max = Math.max(...us.map(u => u.z));
+    const mine = us.filter(u => u.channel === ch).sort((a, b) => a.z - b.z).map(u => u.id);
+    if (mine.length === us.length) return us;
+    const next = us.map(v => (mine.includes(v.id) ? { ...v, z: max + 1 + mine.indexOf(v.id) } : v));
+    if (max + mine.length <= 1000) return next;
+    const order = [...next].sort((a, b) => a.z - b.z).map(v => v.id);
+    return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
+  }), []);
+
   // any press inside a unit brings it to the front; a press on a faded unit also ends channel focus
   const pressUnit = useCallback(id => {
     front(id);
@@ -704,13 +716,14 @@ export default function Chime() {
       </div>
 
       {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
-          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units fade to 25%), again to end it. Below sm it sits above
-          the button row, which leaves it no room beside. */}
+          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units
+          pale to a 25% tint of their ink), again to end it. Below sm it turns upright, 2 wide and up to 8 tall, packed left to right and up
+          from the lower left (flex wrap-reverse), and the button row narrows to leave it room. */}
       {usedChannels.size > 1 && (
         <div
           role="group"
           aria-label="ACTIVE CHANNELS"
-          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] max-sm:bottom-[calc(68px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px]"
+          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px] max-sm:flex max-sm:h-auto max-sm:w-11 max-sm:flex-wrap-reverse"
         >
           {[...usedChannels].sort((a, b) => a - b).map(ch => {
             const ink = C.inkOf(ch), on = focused === ch;
@@ -720,7 +733,7 @@ export default function Chime() {
                 type="button"
                 aria-label={`${ch} ${ink.name}`}
                 aria-pressed={on}
-                onClick={() => setFocus(on ? null : ch)}
+                onClick={() => { if (!on) frontChannel(ch); setFocus(on ? null : ch); }}
                 style={{ background: ink.hex }}
                 className="relative grid size-[22px] cursor-pointer place-items-center border-0 p-0 text-[10px] leading-none text-white tabular-nums focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3"
               >
@@ -754,7 +767,8 @@ export default function Chime() {
 
       {/* the lower-right row: SHARE, RESET, AUDIO, MIDI, 8 px apart and equal in width (narrower on the narrowest
           screens); phones and tablets have no AUDIO, so their row is SHARE, RESET, MIDI */}
-      <div className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]">
+      {/* beside the upright channel strip (44 px and an 8 px gap) the narrow row gives up 52 px */}
+      <div className={`fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]${usedChannels.size > 1 ? " max-sm:*:w-[min(76px,calc((100vw-108px)/4))] max-sm:touch:*:w-[min(76px,calc((100vw-100px)/3))]" : ""}`}>
       {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
           that leaves the link in the address bar */}
       <Button onClick={onShare}>
