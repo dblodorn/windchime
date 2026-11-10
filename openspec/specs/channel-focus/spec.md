@@ -33,15 +33,20 @@ The strip SHALL be a group named "ACTIVE CHANNELS". Each square SHALL be a butto
 - **THEN** its bottom edge lines up with the bottom edge of the SHARE button, and it is no taller than the SHARE button
 
 ### Requirement: Strip placement on narrow viewports
-On viewports narrower than 640 CSS px, where the strip doesn't fit to the left of the lower-right buttons, the strip SHALL sit left-aligned 8 CSS px above the button row instead of beside it. The strip MUST NOT overlap the lower-right buttons at any viewport width from 320 CSS px up.
+On viewports narrower than 640 CSS px, the strip SHALL stand upright: a grid 2 squares wide (44 CSS px) and up to 8 squares tall, filled left to right and upward from its lower-left corner (the first square at the bottom left, the second at the bottom right, the third above the first, and so on), as tall as its rows. It stays in the lower-left corner, its bottom edge level with the bottom edge of the lower-right buttons. While the strip is shown there, the lower-right buttons SHALL narrow (each at most 76 CSS px, all still equal) so the row ends at least 8 CSS px right of the strip, and every button label SHALL still fit. The strip MUST NOT overlap the lower-right buttons at any viewport width from 320 CSS px up.
 
 #### Scenario: Phone width
-- **WHEN** the viewport is 375 px wide and units use 3 channels
-- **THEN** the strip's bottom edge is 8 px above the top edge of the SHARE button, and it does not overlap any of the lower-right buttons
+- **WHEN** the viewport is 375 px wide and units use channels 1, 2, 3, 5 and 9
+- **THEN** the strip is 44 px wide and 66 px tall, with 1 and 2 on the bottom row, 3 and 5 above them, and 9 at the top left
+- **AND** its bottom edge is level with the SHARE button's bottom edge, and it does not overlap any of the lower-right buttons
+
+#### Scenario: Narrowest width
+- **WHEN** the viewport is 320 px wide, the device has a mouse, and units use two channels
+- **THEN** the SHARE, RESET, AUDIO and MIDI buttons are equal in width, start at least 8 px right of the strip, and show their labels without clipping
 
 #### Scenario: Desktop width
 - **WHEN** the viewport is 1280 px wide and units use 3 channels
-- **THEN** the strip sits in the lower-left corner, its bottom edge level with the SHARE button's bottom edge
+- **THEN** the strip sits in the lower-left corner, 2 squares tall and packed down the columns, its bottom edge level with the SHARE button's bottom edge
 
 ### Requirement: Channel focus mode
 Activating a square SHALL focus its channel: every unit on another channel SHALL be shown at 25% opacity, and every unit on the focused channel SHALL stay fully opaque. The focused channel's square SHALL show as pressed (exposed as pressed, and drawn with a 1 px white frame inset 2 px inside the square). At most one channel SHALL be focused at a time:

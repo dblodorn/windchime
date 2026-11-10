@@ -704,13 +704,14 @@ export default function Chime() {
       </div>
 
       {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
-          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units fade to 25%), again to end it. Below sm it sits above
-          the button row, which leaves it no room beside. */}
+          (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units
+          fade to 25%), again to end it. Below sm it turns upright, 2 wide and up to 8 tall, packed left to right and up
+          from the lower left (flex wrap-reverse), and the button row narrows to leave it room. */}
       {usedChannels.size > 1 && (
         <div
           role="group"
           aria-label="ACTIVE CHANNELS"
-          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] max-sm:bottom-[calc(68px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px]"
+          className="fixed left-[calc(16px+env(safe-area-inset-left,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 grid h-11 grid-flow-col grid-rows-[repeat(2,22px)] auto-cols-[22px] max-sm:flex max-sm:h-auto max-sm:w-11 max-sm:flex-wrap-reverse"
         >
           {[...usedChannels].sort((a, b) => a - b).map(ch => {
             const ink = C.inkOf(ch), on = focused === ch;
@@ -754,7 +755,8 @@ export default function Chime() {
 
       {/* the lower-right row: SHARE, RESET, AUDIO, MIDI, 8 px apart and equal in width (narrower on the narrowest
           screens); phones and tablets have no AUDIO, so their row is SHARE, RESET, MIDI */}
-      <div className="fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]">
+      {/* beside the upright channel strip (44 px and an 8 px gap) the narrow row gives up 52 px */}
+      <div className={`fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]${usedChannels.size > 1 ? " max-sm:*:w-[min(76px,calc((100vw-108px)/4))] max-sm:touch:*:w-[min(76px,calc((100vw-100px)/3))]" : ""}`}>
       {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
           that leaves the link in the address bar */}
       <Button onClick={onShare}>
