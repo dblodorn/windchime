@@ -1,32 +1,64 @@
-# Six Tube Chime
+# Chime
 
-A six-tube wind chime simulated in the browser and drawn as 1-bit raster art. Wind pushes a sail, the sail swings a disc clapper, and every strike on a tube becomes a MIDI note.
+A wind chime simulation in the browser, drawn as 1-bit raster art. Wind pushes a sail, the sail swings a clapper, and every strike is a note: played in the browser and sent live to MIDI hardware.
 
-## Controls
+**Live:** https://chime.dmbk.io · **Changelog:** https://chime.dmbk.io/changelog
 
-| Control | What it does |
+## The page
+
+The page holds 1 to 16 chime units. Drag a unit by its paper to move it, and tap a tube (or a note pad) to strike it. Each unit has its own settings, sound, MIDI channel and audio output, and draws in its MIDI channel's color.
+
+Each unit has four round buttons on its drawing:
+
+| Button | What it does |
 | --- | --- |
-| WIND | Strength of the gusting wind on the sail |
+| COPY | Adds a unit with the same settings on the next free MIDI channel |
+| SOUND | Turns the unit's browser sound on or off |
+| NOTES | Shows a pad per tube, with its note and frequency, to strike by hand |
+| SETTINGS | Opens the unit's parameters |
+
+Settings, per unit:
+
+| Setting | What it does |
+| --- | --- |
+| INSTRUMENT | TUBE CHIME (2–8 tubes) or FURIN BELL (one bell, one note, swung by a paper strip) |
+| VOLUME | Browser volume |
+| TUBES | 2 to 8 tubes |
+| WIND | Strength of the gusting wind |
 | DECAY | How long each strike rings (also the MIDI note length) |
-| FREQUENCY | Low-pass filter cutoff, 60 Hz to 15 kHz (MIDI CC74) |
-| RESONANCE | Low-pass filter Q, 0.5 to 18 (MIDI CC71) |
-| ROOT | Pitch of the first tube, C3 to C6 |
-| SCALE | 27 tunings, including Ryukyu, in-sen, hirajoshi, pelog, Hijaz and the harmonic series |
-| SOUNDFONT | All 128 General MIDI instruments and 8 drum kits from the bundled TimGM6mb font, six synthesized voices, and any `.sf2` file you add |
+| FREQUENCY | Low-pass cutoff, 60 Hz to 15 kHz (MIDI CC74) |
+| RESONANCE | Low-pass Q (MIDI CC71) |
+| ROOT, OCTAVE | The first tube's note, C-1 to B8 |
+| SCALE | 32 scales: Japan and Okinawa, Korea, pentatonic, hexatonic, modes and maqam, chords and series. Searchable |
+| SOUNDFONT | The 128 General MIDI instruments and drum kits of the bundled TimGM6mb font, plus 7 built-in voices. Searchable |
+| OUTPUT | The audio interface channel pair or single channel |
+| CHANNEL | MIDI channel 1–16 |
+| MIDI MODE | POLY (shared pitches ring together) or MONO |
 
-MIDI OUT sends every strike live to a hardware or virtual MIDI port (Web MIDI: Chrome, Edge or Firefox on a computer). Pick the interface and channel 1–16; program changes and the filter (CC74 / CC71) can go out too, and PANIC sends All Notes Off. Untick PLAY SOUND IN BROWSER TOO to hear only the device.
+Along the bottom right:
 
-REC captures the live chime; RENDER 2:00 simulates two minutes instantly. SAVE MIDI writes a format-0 `.mid` with the chosen bank and program, so it renders with the same instrument in any SoundFont player.
+- **SHARE** copies a link that carries the whole composition.
+- **RESET** starts over with one chime.
+- **AUDIO** picks the output device. With a multichannel interface, each unit can go to its own outputs (Chromium browsers, not on phones).
+- **MIDI** opens MIDI OUT: the port, program change and filter CCs, TEST NOTE and PANIC (Web MIDI: Chrome, Edge or Firefox on a computer).
+
+With two or more MIDI channels in use, a strip of channel squares appears at the bottom left. Tap one to focus that channel's units; the others fade.
+
+**MENU** (top right) opens COMPOSITIONS, a public list anyone can save to anonymously and open from. Its footer links to the changelog and this repo.
+
+Settings and units are saved in the browser. SOUND always starts off, since browsers only start audio from a tap.
 
 ## Run it
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev        # http://localhost:3000
 ```
 
-Built with Next.js (App Router), React and [Tone.js](https://tonejs.github.io/). The engine lives in `lib/engine.js`; the UI is `components/Chime.jsx`.
+Saving compositions needs `DMBK_GRAPHQL_API_KEY` in `.env.local`. Reading the list works without it.
+
+Built with Next.js 15 (App Router), React 19, [Tone.js](https://tonejs.github.io/), Tailwind CSS v4 and shadcn/ui, in plain JavaScript. The engine (simulation, drawing, audio, SF2 sampler) is `lib/engine.js`, and the UI is `components/Chime.jsx`. `CLAUDE.md` has the full architecture notes. Every push to `main` deploys to production on Vercel.
 
 ## Credits
 
-`public/TimGM6mb.sf2` is TimGM6mb by Tim Brechbill, distributed under the GNU GPL v2 (as packaged by Debian's `timgm6mb-soundfont`).
+`public/TimGM6mb.sf2` is TimGM6mb by Tim Brechbill, distributed under the GNU GPL v2 (as packaged by Debian's `timgm6mb-soundfont`). The channel and changelog colors come from Sanzo Wada's *A Dictionary of Color Combinations*. The typeface is Knif Mono.
