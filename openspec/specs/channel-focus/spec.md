@@ -53,12 +53,17 @@ Activating a square SHALL focus its channel: every unit on another channel SHALL
 - activating the focused channel's square ends focus mode
 - activating another channel's square moves focus to that channel
 
-Faded units SHALL stay fully usable. Focus mode SHALL change only the units' colors: it MUST NOT change any unit's sound, MIDI output, parameters, position or stacking order.
+Focusing a channel SHALL bring that channel's units above every other unit, keeping their stacking order among themselves; the other units keep theirs. This stacking stays after focus ends and is saved like any other stacking change. Ending focus doesn't change the stacking. Faded units SHALL stay fully usable. Apart from colors and that stacking, focus mode MUST NOT change any unit's sound, MIDI output, parameters or position.
 
 #### Scenario: Focus a channel
 - **WHEN** the page has units on channels 1, 2 and 2 and the user activates square 2
 - **THEN** the channel 1 unit draws in `#bfbfbf` on white (drawing pixels, border and buttons), with computed opacity 1, and both channel 2 units draw in `#d60036`
 - **AND** square 2 is pressed and square 1 is not
+
+#### Scenario: Focused units come to the front
+- **WHEN** three units are stacked bottom to top as A on channel 2, B on channel 1, C on channel 2, and the user activates square 2
+- **THEN** the stacking bottom to top is B, A, C
+- **AND** after square 2 is activated again to end focus, it is still B, A, C
 
 #### Scenario: Toggle off
 - **WHEN** channel 2 is focused and the user activates square 2 again
@@ -102,6 +107,6 @@ The focused channel MUST NOT be saved in browser storage, share links or saved c
 - **WHEN** channel 2 is focused and the page is reloaded
 - **THEN** every unit draws in its full ink and no square is pressed
 
-#### Scenario: Link unchanged
-- **WHEN** SHARE is activated with and without a channel focused, for the same units
-- **THEN** the two links are identical
+#### Scenario: Link carries no focus
+- **WHEN** SHARE is activated while a channel is focused, and again after focus ends
+- **THEN** the two links are identical (focusing may have changed the stacking, which links carry, but not the focus itself)

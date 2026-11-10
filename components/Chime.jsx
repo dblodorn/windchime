@@ -541,6 +541,17 @@ export default function Chime() {
     return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
   }), []);
 
+  // focusing a channel brings its units above the rest, keeping their order among themselves
+  const frontChannel = useCallback(ch => setUnits(us => {
+    const max = Math.max(...us.map(u => u.z));
+    const mine = us.filter(u => u.channel === ch).sort((a, b) => a.z - b.z).map(u => u.id);
+    if (mine.length === us.length) return us;
+    const next = us.map(v => (mine.includes(v.id) ? { ...v, z: max + 1 + mine.indexOf(v.id) } : v));
+    if (max + mine.length <= 1000) return next;
+    const order = [...next].sort((a, b) => a.z - b.z).map(v => v.id);
+    return next.map(v => ({ ...v, z: order.indexOf(v.id) + 1 }));
+  }), []);
+
   // any press inside a unit brings it to the front; a press on a faded unit also ends channel focus
   const pressUnit = useCallback(id => {
     front(id);
@@ -722,7 +733,7 @@ export default function Chime() {
                 type="button"
                 aria-label={`${ch} ${ink.name}`}
                 aria-pressed={on}
-                onClick={() => setFocus(on ? null : ch)}
+                onClick={() => { if (!on) frontChannel(ch); setFocus(on ? null : ch); }}
                 style={{ background: ink.hex }}
                 className="relative grid size-[22px] cursor-pointer place-items-center border-0 p-0 text-[10px] leading-none text-white tabular-nums focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3"
               >
