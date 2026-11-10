@@ -3,6 +3,7 @@
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as C from "../lib/colors";
@@ -756,12 +757,18 @@ export default function Chime() {
             <Menu size={20} aria-hidden="true" shapeRendering="crispEdges" />
           </Button>
         </SheetTrigger>
-        <SheetContent aria-describedby={undefined}>
+        <SheetContent aria-describedby={undefined} className="overflow-hidden">
           <SheetHeader>
             <SheetTitle>COMPOSITIONS</SheetTitle>
             <SheetClose asChild><Button className="h-8 px-2.5">CLOSE</Button></SheetClose>
           </SheetHeader>
-          <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
+          {/* only the middle scrolls; 4 px of padding (cancelled by negative margins) keeps focus outlines unclipped */}
+          <div className="-m-1 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto p-1">
+            <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
+          </div>
+          <footer className="flex justify-end border-t border-foreground pt-3">
+            <Button asChild className="h-8 px-2.5"><Link href="/changelog">CHANGELOG</Link></Button>
+          </footer>
         </SheetContent>
       </Sheet>
 
