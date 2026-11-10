@@ -25,9 +25,10 @@ MENU SHALL open a panel named "COMPOSITIONS" that covers the full height of the 
 - its heading;
 - a SAVE button;
 - the list of saved compositions;
-- a MORE button while more compositions exist.
+- a MORE button while more compositions exist;
+- a footer.
 
-The panel SHALL scroll when its content is taller than the viewport. Escape, a press outside it, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
+The heading SHALL stay at the top of the panel. The footer SHALL stay at the bottom, above the device's safe-area inset, and be separated from the content above it by a 1px black rule. The footer SHALL hold a link named CHANGELOG that opens the `/changelog` page. Only the area between the heading and the footer (SAVE, the list and MORE) SHALL scroll when its content is taller than the space it has. Scrolling that area SHALL NOT clip the dashed keyboard focus outline of the controls inside it. Escape, a press outside the panel, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
 
 #### Scenario: Open and close
 - **WHEN** the user opens the panel, then presses Escape
@@ -36,6 +37,18 @@ The panel SHALL scroll when its content is taller than the viewport. Escape, a p
 #### Scenario: Phone width
 - **WHEN** the viewport is 320 px wide and the panel is open
 - **THEN** the panel is no wider than the viewport and the page does not scroll sideways
+
+#### Scenario: Footer stays put
+- **WHEN** the list is taller than the panel and the user scrolls it to the end
+- **THEN** the heading stays at the top, the CHANGELOG footer stays at the bottom, and the rows scroll between them
+
+#### Scenario: Open the changelog
+- **WHEN** the user activates CHANGELOG in the footer
+- **THEN** the `/changelog` page opens
+
+#### Scenario: Short list
+- **WHEN** the list has only a few rows
+- **THEN** the footer is still at the bottom edge of the panel, not directly under the list
 
 ### Requirement: Saving a composition
 SAVE SHALL save every unit of the current composition (the same settings, instrument and root note included, position and stacking order a share link carries; never SOUND, OUTPUT, the audio output device, the MIDI port or the SEND options) to the public list, anonymously: no account, name or text is asked for or sent. Any root note from C-1 to B8 SHALL be saveable. While a save is in progress the button SHALL read `SAVING…` and be disabled. On success it SHALL read `SAVED` for about 1.5 seconds. The saved composition SHALL appear at the top of the list with the title the API gave it. Saving a composition identical to one already in the list SHALL show that existing entry instead of adding a second; compositions that differ only in their units' OUTPUT are identical. When the save fails, the panel SHALL show a one-line message in plain text: `TOO MANY SAVES, TRY LATER` when the API rate-limits it, and `COULD NOT SAVE` otherwise. The composition on the page SHALL be unchanged either way.
