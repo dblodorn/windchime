@@ -1,6 +1,6 @@
 "use client";
 
-// The COMPOSITIONS panel's content: SAVE and the public list of saved compositions, through Relay and the dmbk
+// The COMPOSITIONS panel's content: the public list of saved compositions (and SaveButton, for the panel's footer), through Relay and the dmbk
 // GraphQL API (lib/relay/environment.js → app/api/graphql). Loaded with next/dynamic when MENU is first pressed,
 // so Relay and every request stay off the page until then. Picking a row hands its units to `onOpen`.
 import { Component, Suspense, useRef, useState } from "react";
@@ -142,6 +142,11 @@ function List({ fetchKey, onOpen }) {
   );
 }
 
+// SAVE for the panel's footer: its own provider on the same store, so a save still lands on top of the list
+export function SaveButton({ getUnits }) {
+  return <RelayEnvironmentProvider environment={relayEnvironment()}><Save getUnits={getUnits} /></RelayEnvironmentProvider>;
+}
+
 class LoadFailed extends Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -157,7 +162,7 @@ class LoadFailed extends Component {
 }
 
 // `opening` counts the panel's openings, so each one fetches the list again; RETRY adds a fetch of its own.
-export default function Compositions({ opening, getUnits, onOpen }) {
+export default function Compositions({ opening, onOpen }) {
   const [retries, setRetries] = useState(0);
   const fetchKey = `${opening}:${retries}`;
   const [openFailed, setOpenFailed] = useState(false);
@@ -169,7 +174,6 @@ export default function Compositions({ opening, getUnits, onOpen }) {
   };
   return (
     <RelayEnvironmentProvider environment={relayEnvironment()}>
-      <Save getUnits={getUnits} />
       {openFailed && <Line>COULD NOT OPEN</Line>}
       <LoadFailed key={fetchKey} onRetry={() => setRetries(n => n + 1)}>
         <Suspense fallback={<Line>LOADING…</Line>}>

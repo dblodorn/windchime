@@ -3,6 +3,7 @@
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { motion, useDragControls, useMotionValue } from "motion/react";
 import * as E from "../lib/engine";
 import * as C from "../lib/colors";
@@ -145,6 +146,11 @@ const Compositions = dynamic(() => import("./Compositions"), {
   ssr: false,
   loading: () => <p className="m-0 text-[11px] tracking-[.08em] uppercase">LOADING…</p>,
 });
+// the same chunk; a disabled SAVE holds its place while it loads
+const SaveButton = dynamic(() => import("./Compositions").then(m => m.SaveButton), {
+  ssr: false,
+  loading: () => <Button className="h-11 w-full" disabled>SAVE</Button>,
+});
 function loadUnits() {
   const saved = store.get("units", null);
   if (saved && Array.isArray(saved.units) && saved.units.length) {
@@ -158,6 +164,9 @@ function loadUnits() {
 const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
+// the COMPOSITIONS footer's text links
+const FOOT_LINK = "text-foreground underline underline-offset-3 hover:no-underline focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3";
+
 const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
@@ -756,12 +765,26 @@ export default function Chime() {
             <Menu size={20} aria-hidden="true" shapeRendering="crispEdges" />
           </Button>
         </SheetTrigger>
-        <SheetContent aria-describedby={undefined}>
-          <SheetHeader>
+        <SheetContent aria-describedby={undefined} className="overflow-hidden">
+          {/* edge to edge with a rule under it, like the footer; rows scroll up under the rule */}
+          <SheetHeader className="-mx-4 border-b border-foreground px-4 pb-3.5">
             <SheetTitle>COMPOSITIONS</SheetTitle>
-            <SheetClose asChild><Button className="h-8 px-2.5">CLOSE</Button></SheetClose>
+            <SheetClose asChild><Button>CLOSE</Button></SheetClose>
           </SheetHeader>
-          <Compositions opening={menuOpenings} getUnits={getUnits} onOpen={openSaved} />
+          {/* only the middle scrolls, between the two rules: its -mt and the footer's cancel the sheet's gaps, its top
+              padding gives the first row the same 14 px at rest, and 4 px at the sides and bottom (cancelled by -mx)
+              keeps focus outlines unclipped; no scrollbar */}
+          <div className="-mx-1 -mt-3.5 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto px-1 pt-3.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <Compositions opening={menuOpenings} onOpen={openSaved} />
+          </div>
+          {/* edge to edge: the negative margins cancel the sheet's padding, the bottom one its safe-area padding too */}
+          <footer className="-mx-4 -mt-3.5 -mb-[calc(16px+env(safe-area-inset-bottom))] grid gap-3.5 border-t border-foreground px-4 pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] text-[11px] tracking-[.08em]">
+            <SaveButton getUnits={getUnits} />
+            <div className="flex justify-between">
+              <Link href="/changelog" className={FOOT_LINK}>CHANGELOG</Link>
+              <a href="https://github.com/dblodorn/windchime" target="_blank" rel="noreferrer" className={FOOT_LINK}>GITHUB</a>
+            </div>
+          </footer>
         </SheetContent>
       </Sheet>
 

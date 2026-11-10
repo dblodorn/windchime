@@ -23,11 +23,11 @@ The page SHALL show a MENU button fixed to the upper-right corner of the viewpor
 ### Requirement: COMPOSITIONS panel
 MENU SHALL open a panel named "COMPOSITIONS" that covers the full height of the viewport at the right edge. It SHALL be at most 360 CSS px wide and never wider than the viewport, white, with a 1px black left border, and no tint over the rest of the page. From top to bottom it SHALL hold:
 - its heading;
-- a SAVE button;
 - the list of saved compositions;
-- a MORE button while more compositions exist.
+- a MORE button while more compositions exist;
+- a footer holding the SAVE button (and its message) above two links.
 
-The panel SHALL scroll when its content is taller than the viewport. Escape, a press outside it, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
+The heading SHALL stay at the top of the panel, spanning its full width with a 1px black rule under it, and SHALL hold a CLOSE text button at its right, the same size and style as the CLOSE buttons of the MIDI OUT and AUDIO OUT dialogs. The list SHALL scroll up under that rule. The footer SHALL stay at the bottom edge and span the panel's full width, with a 1px black rule along its top and its content clear of the device's safe-area inset. Under SAVE it SHALL hold two underlined text links, at opposite ends: CHANGELOG on the left, which opens the `/changelog` page, and GITHUB on the right, which opens https://github.com/dblodorn/windchime in a new tab. Only the area between the heading and the footer (the list and MORE) SHALL scroll when its content is taller than the space it has. Scrolling that area SHALL NOT clip the dashed keyboard focus outline of the controls inside it. Escape, a press outside the panel, or a CLOSE button inside it SHALL close it. While it is open, the chimes behind it SHALL keep animating and sounding. The panel SHALL follow the two-color, monospace, square visual rules of `ui-controls`.
 
 #### Scenario: Open and close
 - **WHEN** the user opens the panel, then presses Escape
@@ -36,6 +36,22 @@ The panel SHALL scroll when its content is taller than the viewport. Escape, a p
 #### Scenario: Phone width
 - **WHEN** the viewport is 320 px wide and the panel is open
 - **THEN** the panel is no wider than the viewport and the page does not scroll sideways
+
+#### Scenario: Footer stays put
+- **WHEN** the list is taller than the panel and the user scrolls it to the end
+- **THEN** the heading stays at the top, the footer with SAVE and the links stays at the bottom, and the rows scroll between them
+
+#### Scenario: Open the changelog
+- **WHEN** the user activates CHANGELOG in the footer
+- **THEN** the `/changelog` page opens
+
+#### Scenario: Short list
+- **WHEN** the list has only a few rows
+- **THEN** the footer is still at the bottom edge of the panel, not directly under the list
+
+#### Scenario: Repository link
+- **WHEN** the user activates GITHUB in the footer
+- **THEN** the repository opens in a new tab and the player keeps running
 
 ### Requirement: Saving a composition
 SAVE SHALL save every unit of the current composition (the same settings, instrument and root note included, position and stacking order a share link carries; never SOUND, OUTPUT, the audio output device, the MIDI port or the SEND options) to the public list, anonymously: no account, name or text is asked for or sent. Any root note from C-1 to B8 SHALL be saveable. While a save is in progress the button SHALL read `SAVING…` and be disabled. On success it SHALL read `SAVED` for about 1.5 seconds. The saved composition SHALL appear at the top of the list with the title the API gave it. Saving a composition identical to one already in the list SHALL show that existing entry instead of adding a second; compositions that differ only in their units' OUTPUT are identical. When the save fails, the panel SHALL show a one-line message in plain text: `TOO MANY SAVES, TRY LATER` when the API rate-limits it, and `COULD NOT SAVE` otherwise. The composition on the page SHALL be unchanged either way.
