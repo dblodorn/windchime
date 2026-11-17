@@ -8,16 +8,17 @@ import persistedOperations from "../../../lib/server/persisted-operations.json";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const OPERATIONS = persistedOperations;
+// persisted id → operation text
+const OPERATIONS: Record<string, string> = persistedOperations;
 const API_URL = process.env.DMBK_GRAPHQL_API_URL || "https://graphql.dmbk.network/graphql";
 
-const answer = (status, body) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
-const refuse = (status, code, message, headers = {}) =>
+const answer = (status: number, body: unknown) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
+const refuse = (status: number, code: string, message: string, headers: Record<string, string> = {}) =>
   Response.json({ data: null, errors: [{ message, extensions: { code } }] }, { status, headers: { "cache-control": "no-store", ...headers } });
 
 // Browsers send Sec-Fetch-Site on every fetch; Origin against Host is the fallback. A request with neither is
 // refused, so the check can't be skipped by leaving headers out.
-function isSameOrigin(req) {
+function isSameOrigin(req: Request) {
   const site = req.headers.get("sec-fetch-site");
   if (site) return site === "same-origin";
   const origin = req.headers.get("origin");
@@ -27,24 +28,24 @@ function isSameOrigin(req) {
 }
 
 // Vercel puts the visitor first in x-forwarded-for. The API checks that it is an IP address.
-const visitorIp = req => req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || null;
+const visitorIp = (req: Request) => req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || null;
 
-export async function POST(req) {
+export async function POST(req: Request) {
   if (!isSameOrigin(req)) return refuse(403, "FORBIDDEN", "Cross-origin requests are not accepted.");
 
-  let body;
+  let body: { id?: unknown; variables?: unknown } | null;
   try { body = await req.json(); } catch { body = null; }
   // hasOwn, so an id like "constructor" can't reach the prototype. A body with query text and no id lands here too.
   const id = body && typeof body.id === "string" ? body.id : null;
   const query = id && Object.hasOwn(OPERATIONS, id) ? OPERATIONS[id] : undefined;
   if (!query) return refuse(400, "PERSISTED_QUERY_NOT_FOUND", "Unknown operation.");
-  const variables = body.variables && typeof body.variables === "object" ? body.variables : {};
+  const variables = body!.variables && typeof body!.variables === "object" ? body!.variables : {};
 
   const key = process.env.DMBK_GRAPHQL_API_KEY;
   if (!key && process.env.NODE_ENV === "production") throw new Error("DMBK_GRAPHQL_API_KEY is not set.");
   const ip = visitorIp(req);
 
-  let res;
+  let res: Response;
   try {
     res = await fetch(API_URL, {
       method: "POST",
@@ -61,7 +62,7 @@ export async function POST(req) {
     console.error("[graphql-proxy]", err);
     return refuse(502, "API_UNAVAILABLE", "The dmbk API could not be reached.");
   }
-  let json;
+  let json: unknown;
   try { json = await res.json(); } catch { return refuse(502, "API_UNAVAILABLE", `The dmbk API answered ${res.status} with no JSON.`); }
   const retry = res.headers.get("retry-after");
   return retry ? Response.json(json, { status: res.status, headers: { "cache-control": "no-store", "retry-after": retry } }) : answer(res.status, json);

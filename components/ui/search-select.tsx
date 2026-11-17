@@ -5,7 +5,7 @@ import { cn } from "cn"
 import { Popover as PopoverPrimitive } from "radix-ui"
 import { Button } from "./button"
 
-// A select with a search field, for long lists (SCALE, SOUNDFONT). Same field and list look as select.jsx.
+// A select with a search field, for long lists (SCALE, SOUNDFONT). Same field and list look as select.tsx.
 // `groups` is [{ label, items: [{ value, name, text }] }]: `name` is matched, `text` is shown.
 // Hand-written on Radix Popover (not cmdk) so the ordering is exactly rank()'s; nested in the settings
 // popover, Radix's layer stack sends Escape and outside presses to this list first.
@@ -14,17 +14,22 @@ import { Button } from "./button"
 // The panel has a fixed height, so filtering (down to the empty state) never shrinks, moves or flips it.
 
 const TOUCH = "(any-hover: none) and (any-pointer: coarse)" // the `touch` variant in globals.css
-const byName = (a, b) => a.name.localeCompare(b.name, "en", { numeric: true })
+export interface SearchOption { value: string; name: string; text: string }
+export interface SearchGroup { label: string; items: SearchOption[] }
+// rank()'s result: a null label is the flat list of matches, shown without a heading
+type RankedGroup = { label: string | null; items: SearchOption[] }
+
+const byName = (a: SearchOption, b: SearchOption) => a.name.localeCompare(b.name, "en", { numeric: true })
 
 // Empty query: the groups as given. Otherwise one flat list of names containing it (any case):
 // names that start with it first, then the rest, each part alphabetical. With `byGroup`, the groups
 // whose label contains it follow, under their headings in their own order, minus options already listed.
-export function rank(groups, query, byGroup = false) {
+export function rank(groups: SearchGroup[], query: string, byGroup = false): RankedGroup[] {
   const q = query.trim().toUpperCase()
   if (!q) return groups
   const hits = groups.flatMap(g => g.items).filter(o => o.name.toUpperCase().includes(q))
-  const starts = o => o.name.toUpperCase().startsWith(q)
-  const out = hits.length ? [{ label: null, items: [...hits.filter(starts).sort(byName), ...hits.filter(o => !starts(o)).sort(byName)] }] : []
+  const starts = (o: SearchOption) => o.name.toUpperCase().startsWith(q)
+  const out: RankedGroup[] = hits.length ? [{ label: null, items: [...hits.filter(starts).sort(byName), ...hits.filter(o => !starts(o)).sort(byName)] }] : []
   if (byGroup) {
     const listed = new Set(hits)
     for (const g of groups)
@@ -36,30 +41,33 @@ export function rank(groups, query, byGroup = false) {
   return out
 }
 
-function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled, contentStyle }) {
+function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled, contentStyle }: {
+  id: string; value: string; display: React.ReactNode; onChange: (value: string) => void; groups: SearchGroup[];
+  byGroup?: boolean; disabled?: boolean; contentStyle?: React.CSSProperties;
+}) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const [hi, setHi] = React.useState(0)
-  const inputRef = React.useRef(null)
-  const listRef = React.useRef(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
 
   const shown = React.useMemo(() => rank(groups, query, byGroup), [groups, query, byGroup])
   const flat = shown.flatMap(g => g.items)
   const listId = `${id}-list`
-  const optId = i => `${id}-o-${i}`
-  const current = list => Math.max(0, list.findIndex(o => o.value === value))
+  const optId = (i: number) => `${id}-o-${i}`
+  const current = (list: SearchOption[]) => Math.max(0, list.findIndex(o => o.value === value))
 
   // every opening starts from `q` (empty, or the key typed on the closed field)
-  const openWith = q => {
+  const openWith = (q: string) => {
     setQuery(q)
     setHi(q ? 0 : current(groups.flatMap(g => g.items)))
     setOpen(true)
   }
-  const search = q => {
+  const search = (q: string) => {
     setQuery(q)
     setHi(q.trim() ? 0 : current(groups.flatMap(g => g.items)))
   }
-  const choose = o => {
+  const choose = (o: SearchOption | undefined) => {
     if (!o) return
     setOpen(false)
     if (o.value !== value) onChange(o.value)
@@ -69,12 +77,12 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
     if (open) document.getElementById(optId(hi))?.scrollIntoView({ block: "nearest" })
   }, [open, hi, query]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onTriggerKey = e => {
+  const onTriggerKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); openWith("") }
     // type to open: a printable key opens the list with it as the search
     else if (e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openWith(e.key) }
   }
-  const onListKey = e => {
+  const onListKey = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") { e.preventDefault(); setHi(i => Math.min(i + 1, flat.length - 1)) }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHi(i => Math.max(i - 1, 0)) }
     else if (e.key === "Enter") { e.preventDefault(); choose(flat[hi]) }
@@ -82,7 +90,7 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
   const active = flat[hi] ? optId(hi) : undefined
 
   let n = -1 // running index into `flat` across groups
-  const option = o => {
+  const option = (o: SearchOption) => {
     const i = ++n
     return (
       <div key={o.value} id={optId(i)} role="option" aria-selected={o.value === value} data-highlighted={i === hi ? "" : undefined}

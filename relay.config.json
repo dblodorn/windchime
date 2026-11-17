@@ -1,7 +1,7 @@
 {
   "src": ".",
   "schema": "./schemas/dmbk-graphql-api.graphql",
-  "language": "javascript",
+  "language": "typescript",
   "eagerEsModules": true,
   "excludes": ["**/node_modules/**", "**/__generated__/**", "**/.next/**", "**/lib/server/**", "**/openspec/**", "**/public/**"],
   "persistConfig": {

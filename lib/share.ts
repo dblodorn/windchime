@@ -2,31 +2,33 @@
 // zod checks a unit before it is packed and after it is unpacked; UnitSchema is also the stored-data check.
 // No DOM at module top level, so this imports in Node.
 import { z } from "zod";
-import { SCALE_LIST, MIN_TUBES, MAX_TUBES } from "./engine.js";
+import { SCALE_LIST, MIN_TUBES, MAX_TUBES } from "./engine.ts";
+import type { Instrument } from "./engine.ts";
 
 export const MAX_UNITS = 16;
-const SCALE_NAMES = SCALE_LIST.map(s => s.name);
+// non-empty, as z.enum needs: SCALE_LIST always has its scales
+const SCALE_NAMES = SCALE_LIST.map(s => s.name) as [string, ...string[]];
 
 // ---------- unit record ----------
 // The one definition of a unit's fields, ranges and defaults. Each field falls back to its default on its own,
 // so one bad value never costs the rest of the unit. SOUND is never carried (audio starts only from a tap).
 export const DEFAULTS = {
-  instrument: "chime", volume: 1, tubes: 6, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: SCALE_NAMES[0], voice: null,
-  channel: 1, midiMode: "poly", output: "1-2", notes: false, sound: false, x: 0, y: 0, z: 1,
+  instrument: "chime" as Instrument, volume: 1, tubes: 6, wind: 0.45, decay: 4, cutX: 0.78, q: 3, root: 72, scale: SCALE_NAMES[0],
+  voice: null as string | null, channel: 1, midiMode: "poly" as "poly" | "mono", output: "1-2", notes: false, sound: false, x: 0, y: 0, z: 1,
 };
 // OUTPUT: a channel pair "1-2", "3-4", … or one channel "1", "2", …, up to 32. It describes this browser's
 // audio device, so it stays in browser storage: links and saved compositions never carry it.
 export const MAX_OUTPUT_CHANNELS = 32;
-const outputOk = v => {
+const outputOk = (v: string) => {
   const m = /^(\d{1,2})(?:-(\d{1,2}))?$/.exec(v);
   if (!m) return false;
   const a = +m[1], b = m[2] && +m[2];
   return a >= 1 && (b ? a % 2 === 1 && b === a + 1 && b <= MAX_OUTPUT_CHANNELS : a <= MAX_OUTPUT_CHANNELS);
 };
-const num = (lo, hi, d, round = false) =>
+const num = (lo: number, hi: number, d: number, round = false) =>
   z.number().transform(v => { const c = Math.min(hi, Math.max(lo, v)); return round ? Math.round(c) : c; }).catch(d);
 
-export const INSTRUMENTS = ["chime", "furin"];
+export const INSTRUMENTS = ["chime", "furin"] as const;
 // ROOT is a MIDI note from C-1 to B8 (ROOT picks the note, OCTAVE −1 to 8 the octave)
 export const MIN_ROOT = 0, MAX_ROOT = 119;
 
@@ -52,6 +54,11 @@ export const UnitSchema = z.preprocess(r => (r && typeof r === "object" && !Arra
   z: num(1, 1e6, 1, true),
 }));
 
+// a unit's fields as the schema gives them back (SOUND always off)
+export type UnitFields = z.infer<typeof UnitSchema>;
+// a unit as the page holds it: with an id, and SOUND, which may be on for the visit
+export type Unit = Omit<UnitFields, "sound"> & { id: string; sound: boolean };
+
 export const CompositionSchema = z.preprocess(
   us => (Array.isArray(us) ? us.slice(0, MAX_UNITS) : us),
   z.array(UnitSchema).min(1),
@@ -76,10 +83,12 @@ export const PackedUnitSchema = z.object({
   instrument: z.int().min(0).max(INSTRUMENTS.length - 1), // index in INSTRUMENTS (byte 17; 0 in links before it)
 }).strict();
 
-const VERSION = 1, UNIT_BYTES = 19;
-const i16 = v => Math.max(-32768, Math.min(32767, Math.round(v)));
+type PackedUnit = z.infer<typeof PackedUnitSchema>;
 
-function voiceCode(v) {
+const VERSION = 1, UNIT_BYTES = 19;
+const i16 = (v: number) => Math.max(-32768, Math.min(32767, Math.round(v)));
+
+function voiceCode(v: string | null) {
   if (!v) return 0;
   let m = /^v(\d+)$/.exec(v);
   if (m && +m[1] < 999) return 1 + +m[1];
@@ -87,9 +96,9 @@ function voiceCode(v) {
   if (m && +m[1] <= 65535 - 1000) return 1000 + +m[1];
   return 0;
 }
-const voiceId = c => (c === 0 ? null : c < 1000 ? "v" + (c - 1) : "s0:" + (c - 1000));
+const voiceId = (c: number) => (c === 0 ? null : c < 1000 ? "v" + (c - 1) : "s0:" + (c - 1000));
 
-function pack(u, rank) {
+function pack(u: Omit<UnitFields, "sound">, rank: number) {
   return PackedUnitSchema.parse({
     volume: Math.round(u.volume * 100), tubes: u.tubes, wind: Math.round(u.wind * 100), decay: Math.round(u.decay * 10),
     cutX: Math.round(u.cutX * 1000), q: Math.round(u.q * 10), root: u.root, scale: SCALE_NAMES.indexOf(u.scale),
@@ -97,7 +106,7 @@ function pack(u, rank) {
     x: i16(u.x), y: i16(u.y), rank, instrument: INSTRUMENTS.indexOf(u.instrument),
   });
 }
-function unpack(p) {
+function unpack(p: PackedUnit) {
   return {
     volume: p.volume / 100, tubes: p.tubes, wind: p.wind / 100, decay: p.decay / 10, cutX: p.cutX / 1000, q: p.q / 10,
     root: p.root, scale: SCALE_NAMES[p.scale], voice: voiceId(p.voice), channel: (p.flags & 15) + 1,
@@ -106,14 +115,14 @@ function unpack(p) {
   };
 }
 
-const toB64 = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-function fromB64(s) {
+const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+function fromB64(s: string) {
   if (!/^[A-Za-z0-9_-]*$/.test(s)) return null;
   try { return Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0)); } catch (e) { return null; }
 }
 
 // units (records as the page holds them) → the fragment code
-export function encode(units) {
+export function encode(units: readonly Unit[]) {
   const us = CompositionSchema.parse(units);
   const order = us.map((u, i) => i).sort((a, b) => us[a].z - us[b].z);
   const rank = new Map(order.map((ui, r) => [ui, r]));
@@ -121,7 +130,7 @@ export function encode(units) {
   dv.setUint8(0, VERSION);
   dv.setUint8(1, us.length);
   us.forEach((u, i) => {
-    const p = pack(u, rank.get(i)), o = 2 + UNIT_BYTES * i;
+    const p = pack(u, rank.get(i)!), o = 2 + UNIT_BYTES * i;
     dv.setUint8(o, p.volume); dv.setUint8(o + 1, p.tubes); dv.setUint8(o + 2, p.wind); dv.setUint8(o + 3, p.decay);
     dv.setUint16(o + 4, p.cutX); dv.setUint8(o + 6, p.q); dv.setUint8(o + 7, p.root); dv.setUint8(o + 8, p.scale);
     dv.setUint16(o + 9, p.voice); dv.setUint8(o + 11, p.flags); dv.setInt16(o + 12, p.x); dv.setInt16(o + 14, p.y);
@@ -131,7 +140,7 @@ export function encode(units) {
   return toB64(new Uint8Array(dv.buffer));
 }
 
-const readers = {
+const readers: Record<number, (dv: DataView) => ReturnType<typeof unpack>[] | null> = {
   1(dv) {
     const n = dv.getUint8(1);
     if (n < 1 || n > MAX_UNITS || dv.byteLength !== 2 + UNIT_BYTES * n) return null;
@@ -150,7 +159,7 @@ const readers = {
 };
 
 // the fragment code → checked unit records (without ids), or null when it isn't a composition
-export function decode(code) {
+export function decode(code: string | null | undefined) {
   const bytes = typeof code === "string" ? fromB64(code) : null;
   if (!bytes || bytes.length < 2) return null;
   const read = readers[bytes[0]];
@@ -174,23 +183,23 @@ const SavedUnitSchema = z.object({
 });
 
 // units (records as the page holds them) → ChimeUnitInput list for dmbkSoundSaveChimeComposition
-export function toSaved(units) {
+export function toSaved(units: readonly Unit[]) {
   const us = CompositionSchema.parse(units);
   const order = us.map((u, i) => i).sort((a, b) => us[a].z - us[b].z);
   const rank = new Map(order.map((ui, r) => [ui, r]));
   return us.map((u, i) => {
-    const p = pack(u, rank.get(i));
+    const p = pack(u, rank.get(i)!);
     return {
       volume: p.volume, tubes: p.tubes, wind: p.wind, decay: p.decay, cutoff: p.cutX, resonance: p.q, root: p.root,
-      scale: u.scale, voice: voiceId(p.voice), channel: u.channel, midiMode: u.midiMode === "mono" ? "MONO" : "POLY",
-      notes: u.notes, x: p.x, y: p.y, rank: p.rank, instrument: u.instrument === "furin" ? "FURIN" : "CHIME",
+      scale: u.scale, voice: voiceId(p.voice), channel: u.channel, midiMode: u.midiMode === "mono" ? "MONO" as const : "POLY" as const,
+      notes: u.notes, x: p.x, y: p.y, rank: p.rank, instrument: u.instrument === "furin" ? "FURIN" as const : "CHIME" as const,
     };
   });
 }
 
 // ChimeUnit list from the API → checked unit records (without ids), or null when it isn't a composition this
 // build can open (an unknown scale, a value out of range, no units or more than 16)
-export function fromSaved(saved) {
+export function fromSaved(saved: unknown) {
   const r = z.array(SavedUnitSchema).min(1).max(MAX_UNITS).safeParse(saved);
   if (!r.success) return null;
   const units = r.data.map(s => unpack({
@@ -204,7 +213,7 @@ export function fromSaved(saved) {
 }
 
 // "#c=<code>" (or "c=<code>") → the code, or null
-export function codeFromHash(hash) {
+export function codeFromHash(hash: string | null | undefined) {
   const m = /^#?c=([A-Za-z0-9_-]+)$/.exec(hash || "");
   return m ? m[1] : null;
 }

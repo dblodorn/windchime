@@ -9,3 +9,5 @@ out
 # persisted-operation allowlist app/api/graphql reads
 __generated__/
 /lib/server/persisted-operations.json
+*.tsbuildinfo
+next-env.d.ts

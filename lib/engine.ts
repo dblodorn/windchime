@@ -1,12 +1,13 @@
 // Six Tube Chime engine: raster drawing, wind/clapper physics, audio (Tone.js + SF2 sampler) and MIDI export.
 // Browser-only. Make a chime with createChime() and call its attach() inside an effect; every attached
 // chime is stepped and drawn by one shared loop and plays through one shared output stage.
+import type { Filter, FMSynth, PolySynth } from "tone";
 
 export const W = 200, H = 200;
 // scratch raster: each chime draws into it in turn, then presents it to its own canvas
 const buf = new Uint8Array(W * H);
-function px(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < W && y >= 0 && y < H) buf[y * W + x] = c; }
-function line(x0, y0, x1, y1, c = 1) {
+function px(x: number, y: number, c: number) { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < W && y >= 0 && y < H) buf[y * W + x] = c; }
+function line(x0: number, y0: number, x1: number, y1: number, c = 1) {
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
@@ -21,16 +22,16 @@ function line(x0, y0, x1, y1, c = 1) {
 // The figure is computed in the original 192x232 three-quarter projection and mapped onto the
 // 200x200 paper by one scale (K, set from measured extents: fits at rest and in 99% of frames at WIND 0.45).
 const K = 0.8, TOP = 0;
-const toX = x => 100 + (x - 96) * K, toY = y => TOP + y * K;
+const toX = (x: number) => 100 + (x - 96) * K, toY = (y: number) => TOP + y * K;
 const OX0 = 96 - 100 / K, OX1 = 96 + 100 / K;   // paper edges in projection space
-function seg(x0, y0, x1, y1) { line(toX(x0), toY(y0), toX(x1), toY(y1)); }
+function seg(x0: number, y0: number, x1: number, y1: number) { line(toX(x0), toY(y0), toX(x1), toY(y1)); }
 // closed ellipse as n straight segments
-function outline(cx, cy, rx, ry, n) {
+function outline(cx: number, cy: number, rx: number, ry: number, n: number) {
   let x0 = cx + rx, y0 = cy;
   for (let k = 1; k <= n; k++) { const a = k / n * Math.PI * 2, x = cx + Math.cos(a) * rx, y = cy + Math.sin(a) * ry; seg(x0, y0, x, y); x0 = x; y0 = y; }
 }
-function present(ch) {
-  if (!ch.ctx2d) return;
+function present(ch: ChimeState) {
+  if (!ch.ctx2d || !ch.img) return;
   const d = ch.img.data;
   const [r, g, b] = ch.ink;
   for (let i = 0, j = 0; i < buf.length; i++, j += 4) {
@@ -41,14 +42,14 @@ function present(ch) {
 }
 
 // ---------- pitch and scales ----------
-export const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+export const NOTE_NAMES: readonly string[] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const NAMES = NOTE_NAMES;
-export const noteName = m => NAMES[m % 12] + (Math.floor(m / 12) - 1);
-export const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
-export const cutoffHz = x => 60 * Math.pow(2, x * 8);
+export const noteName = (m: number) => NAMES[m % 12] + (Math.floor(m / 12) - 1);
+export const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+export const cutoffHz = (x: number) => 60 * Math.pow(2, x * 8);
 // Share links store a scale by its index in SCALE_LIST: only append scales (reordering or removing needs a new
 // link version in lib/share.js that maps the old indices).
-const SCALES = [
+const SCALES: [group: string, scales: [name: string, deg: number[]][]][] = [
   ["Japan and Okinawa", [
     ["RYUKYU", [0, 4, 5, 7, 11]],
     ["IN-SEN", [0, 1, 5, 7, 10]],
@@ -97,14 +98,21 @@ const SCALES = [
 export { SCALES };
 export const SCALE_LIST = SCALES.flatMap(([group, items]) => items.map(([name, deg]) => ({ group, name, deg })));
 // the first n notes of a scale, one per tube; a shorter scale wraps around an octave up
-export function tubeNotes(deg, n) {
-  const out = [];
+export function tubeNotes(deg: readonly number[], n: number) {
+  const out: number[] = [];
   for (let k = 0; out.length < n; k++) out.push(deg[k % deg.length] + 12 * Math.floor(k / deg.length));
   return out;
 }
 
 // ---------- parameters (each chime has its own, changed with its setParams) ----------
-const defaultParams = () => ({ instrument: "chime", volume: 1, wind: 0.45, decay: 4, cutX: 0.78, cutoff: cutoffHz(0.78), q: 3, root: 72, tubes: 6, scale: tubeNotes(SCALE_LIST[0].deg, 6), output: { first: 0, count: 2 } });
+export type Instrument = "chime" | "furin";
+// OUTPUT as channels of the device: first is 0-based, count is 2 (a pair) or 1
+export interface Output { first: number; count: number }
+export interface Params {
+  instrument: Instrument; volume: number; wind: number; decay: number; cutX: number; cutoff: number; q: number;
+  root: number; tubes: number; scale: number[]; output: Output;
+}
+const defaultParams = (): Params => ({ instrument: "chime", volume: 1, wind: 0.45, decay: 4, cutX: 0.78, cutoff: cutoffHz(0.78), q: 3, root: 72, tubes: 6, scale: tubeNotes(SCALE_LIST[0].deg, 6), output: { first: 0, count: 2 } });
 
 // ---------- geometry ----------
 const CX = 96, RING_Y = 22, R = 58, Z = 0.3, STR = 8;
@@ -112,14 +120,14 @@ const STRIKER_Y = RING_Y + 66, RS = 16, RT = 3.5, SAIL_Y = RING_Y + 128;
 export const MIN_TUBES = 2, MAX_TUBES = 8;
 // furin: crown at BELL_TOP, rim at BELL_RIM (radius FRB), clapper (radius FRCL) at CLAP_Y, strip below it
 const BELL_TOP = 28, BELL_RIM = 74, FRB = 26, CLAP_Y = 66, FRCL = 4, STRIP_Y = 112, STRIP_H = 72;
-const bellR = y => (y <= BELL_TOP ? 5 : y >= BELL_RIM ? FRB : 5 + (FRB - 5) * Math.pow(Math.sin(Math.PI / 2 * (y - BELL_TOP) / (BELL_RIM - BELL_TOP)), 0.6));
+const bellR = (y: number) => (y <= BELL_TOP ? 5 : y >= BELL_RIM ? FRB : 5 + (FRB - 5) * Math.pow(Math.sin(Math.PI / 2 * (y - BELL_TOP) / (BELL_RIM - BELL_TOP)), 0.6));
 const FRC = bellR(CLAP_Y) - FRCL;   // the clapper's centre meets the wall here
-const clampTubes = n => Math.max(MIN_TUBES, Math.min(MAX_TUBES, Math.round(n) || 6));
+const clampTubes = (n: number) => Math.max(MIN_TUBES, Math.min(MAX_TUBES, Math.round(n) || 6));
 // Tube i of n hangs at start(n) + i·2π/n. Each count's start angle spreads the tubes widest on screen
 // (through the YAW view); 6 keeps the original layout exactly.
-const START = { 2: -20, 3: -50, 4: -38.5, 5: -74, 7: -58.5, 8: -73 };
-const layouts = {};
-function layout(n) {
+const START: Record<number, number> = { 2: -20, 3: -50, 4: -38.5, 5: -74, 7: -58.5, 8: -73 };
+const layouts: Record<number, Layout> = {};
+function layout(n: number) {
   if (!layouts[n]) {
     const a0 = n === 6 ? -Math.PI / 2 + Math.PI / 6 : START[n] * Math.PI / 180;
     const ang = Array.from({ length: n }, (_, i) => a0 + i * 2 * Math.PI / n);
@@ -127,26 +135,37 @@ function layout(n) {
   }
   return layouts[n];
 }
-const offsetOf = (P, i) => P.scale[i % P.scale.length];
+const offsetOf = (P: Params, i: number) => P.scale[i % P.scale.length];
 // a note above MIDI 127 (a high root plus a wide scale) plays an octave lower, as often as needed
-export const foldNote = n => { while (n > 127) n -= 12; return n; };
+export const foldNote = (n: number) => { while (n > 127) n -= 12; return n; };
 // a furin plays its root alone
-const noteAt = (P, i) => foldNote(P.instrument === "furin" ? P.root : P.root + offsetOf(P, i));
-function tubeLen(P, i) { return 118 * Math.sqrt(mtof(P.root) / mtof(P.root + offsetOf(P, i))); }
+const noteAt = (P: Params, i: number) => foldNote(P.instrument === "furin" ? P.root : P.root + offsetOf(P, i));
+function tubeLen(P: Params, i: number) { return 118 * Math.sqrt(mtof(P.root) / mtof(P.root + offsetOf(P, i))); }
 
 // ---------- simulation ----------
-function rngFrom(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-function makeSim(seed, n = 6) {
+interface Vec { x: number; z: number }
+interface Clapper extends Vec { vx: number; vz: number }
+interface Tube { dx: number; dz: number; vx: number; vz: number; cool: number; env: number }
+// the furin's clapper (c) and paper strip (q)
+interface FurinState { cx: number; cz: number; cvx: number; cvz: number; qx: number; qz: number; qvx: number; qvz: number; armed: boolean; cool: number }
+interface Layout { n: number; ang: number[]; rest: Vec[] }
+interface Sim {
+  t: number; rnd: () => number; gauss: () => number; s: Clapper; F: Vec; phi: number; g: number;
+  lay: Layout; tubes: Tube[]; fu: FurinState;
+}
+type HitFn = (i: number, vel: number, t: number) => void;
+function rngFrom(seed: number) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function makeSim(seed: number, n = 6): Sim {
   const lay = layout(n);
   const rnd = rngFrom(seed);
   const gauss = () => { let u = 0; while (!u) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); };
   return { t: 0, rnd, gauss, s: { x: 0, z: 0, vx: 0, vz: 0 }, F: { x: 0, z: 0 }, phi: rnd() * Math.PI * 2, g: 0,
     lay, tubes: lay.rest.map(restTube), fu: restFurin() };
 }
-const restTube = () => ({ dx: 0, dz: 0, vx: 0, vz: 0, cool: 0, env: 0 });
-const restFurin = () => ({ cx: 0, cz: 0, cvx: 0, cvz: 0, qx: 0, qz: 0, qvx: 0, qvz: 0, armed: true, cool: 0 });
+const restTube = (): Tube => ({ dx: 0, dz: 0, vx: 0, vz: 0, cool: 0, env: 0 });
+const restFurin = (): FurinState => ({ cx: 0, cz: 0, cvx: 0, cvz: 0, qx: 0, qz: 0, qvx: 0, qvz: 0, armed: true, cool: 0 });
 // A new instrument starts at rest; the wind and the random stream carry on. Tubes come back with one cooldown.
-function switchInstrument(sim, instrument) {
+function switchInstrument(sim: Sim, instrument: Instrument) {
   if (instrument === "furin") sim.fu = restFurin();
   else {
     sim.tubes = sim.lay.rest.map(() => ({ ...restTube(), cool: 0.08 }));
@@ -155,13 +174,13 @@ function switchInstrument(sim, instrument) {
 }
 // A new tube count: tubes 1..min(old, new) keep their motion, new ones start at rest; the wind, clapper, sail and
 // random stream carry on. Every tube waits one cooldown, so a tube moved onto the clapper doesn't strike.
-function resize(sim, n) {
+function resize(sim: Sim, n: number) {
   sim.lay = layout(n);
   sim.tubes = sim.lay.rest.map((_, i) => sim.tubes[i] || restTube());
   for (const tb of sim.tubes) tb.cool = Math.max(tb.cool, 0.08);
 }
 const KS = 10, CS = 0.45, KT = 30, CT = 1.1, MS = 1, MT = 0.5, E = 0.6, TAU = 0.6;
-function step(sim, P, dt, onHit) {
+function step(sim: Sim, P: Params, dt: number, onHit: HitFn) {
   stepWind(sim, P, dt);
   if (P.instrument === "furin") stepFurin(sim, dt, onHit);
   else stepTubes(sim, P, dt, onHit);
@@ -169,7 +188,7 @@ function step(sim, P, dt, onHit) {
 }
 // The gusting wind force F, shared by both instruments. Its random draws keep their order, so a tube chime's
 // strikes for a seed are what they were before the furin existed.
-function stepWind(sim, P, dt) {
+function stepWind(sim: Sim, P: Params, dt: number) {
   const w = Math.sqrt(P.wind), sq = Math.sqrt(dt);
   sim.phi += 0.25 * sq * sim.gauss();
   sim.g += (-sim.g / 4) * dt + 0.5 * Math.sqrt(2 / 4) * sq * sim.gauss();
@@ -179,7 +198,7 @@ function stepWind(sim, P, dt) {
   sim.F.x += ((mx - sim.F.x) / TAU) * dt + sig * sq * sim.gauss();
   sim.F.z += ((mz - sim.F.z) / TAU) * dt + sig * sq * sim.gauss();
 }
-function stepTubes(sim, P, dt, onHit) {
+function stepTubes(sim: Sim, P: Params, dt: number, onHit: HitFn) {
   const s = sim.s;
   s.vx += (sim.F.x - KS * s.x - CS * s.vx) * dt; s.vz += (sim.F.z - KS * s.z - CS * s.vz) * dt;
   s.x += s.vx * dt; s.z += s.vz * dt;
@@ -211,7 +230,7 @@ function stepTubes(sim, P, dt, onHit) {
 // the clapper, and the clapper strikes where it meets the bell's wall (radius FRC). A strike disarms the clapper until
 // it has moved back off the wall, with a minimum gap, so a clapper pressed against the wall doesn't strike every step.
 const FA = 1, FKQ = 6, FKC = 18, FKCQ = 8, FMC = 0.6, FCQ = 1.2, FCC = 0.8, FE = 0.5, FVMIN = 3, FVS = 45, FGAP = 0.04;
-function stepFurin(sim, dt, onHit) {
+function stepFurin(sim: Sim, dt: number, onHit: HitFn) {
   const f = sim.fu, F = sim.F;
   f.qvx += (FA * F.x - FKQ * f.qx - FKCQ * (f.qx - f.cx) - FCQ * f.qvx) * dt;
   f.qvz += (FA * F.z - FKQ * f.qz - FKCQ * (f.qz - f.cz) - FCQ * f.qvz) * dt;
@@ -236,11 +255,13 @@ function stepFurin(sim, dt, onHit) {
 }
 
 // ---------- drawing ----------
-function makeStreaks() {
+interface Streak { x: number; y: number; len: number }
+interface TubeGeom { ax: number; ay: number; tx: number; ty: number; bx: number; by: number }
+function makeStreaks(): Streak[] {
   return Array.from({ length: 30 }, () => ({ x: OX0 + Math.random() * (OX1 - OX0), y: 12 + Math.random() * (H / K - 24), len: 3 + Math.floor(Math.random() * 7) }));
 }
 // Single-pixel lines only, no fills, so nothing hides anything else and no depth sort is needed.
-function draw(ch) {
+function draw(ch: ChimeState) {
   buf.fill(0);
   const n = Math.round(ch.P.wind * ch.streaks.length);
   for (let k = 0; k < n; k++) { const st = ch.streaks[k]; seg(st.x, st.y, st.x + st.len, st.y); }
@@ -254,9 +275,9 @@ function draw(ch) {
 }
 // The camera is turned YAW about the vertical axis so no two tubes share a screen x (drawing only; the sim is untouched).
 const YAW = 20 * Math.PI / 180, CYAW = Math.cos(YAW), SYAW = Math.sin(YAW);
-const view = (x, z) => [x * CYAW - z * SYAW, x * SYAW + z * CYAW];
+const view = (x: number, z: number): [number, number] => [x * CYAW - z * SYAW, x * SYAW + z * CYAW];
 // string attach point on the ring, tube top and bottom, in projection space
-function tubeGeom(P, lay, i, tb) {
+function tubeGeom(P: Params, lay: Layout, i: number, tb: Tube): TubeGeom {
   const a = lay.ang[i], L = tubeLen(P, i), rest = lay.rest;
   const [ax, az] = view(Math.cos(a) * (R + 4) * 0.9, Math.sin(a) * (R + 4) * 0.9);
   const [tx, tz] = view(rest[i].x + tb.dx * 0.35, rest[i].z + tb.dz * 0.35);
@@ -267,12 +288,12 @@ function tubeGeom(P, lay, i, tb) {
   };
 }
 // a tube: its string, then an outlined body as wide as the sim's tube (2·RT), open inside
-function drawTube(g) {
+function drawTube(g: TubeGeom) {
   seg(g.ax, g.ay, g.tx, g.ty);
   seg(g.tx - RT, g.ty, g.bx - RT, g.by); seg(g.tx + RT, g.ty, g.bx + RT, g.by);
   seg(g.tx - RT, g.ty, g.tx + RT, g.ty); seg(g.bx - RT, g.by, g.bx + RT, g.by);
 }
-function drawStriker(sim) {
+function drawStriker(sim: Sim) {
   const [vx, vz] = view(sim.s.x, sim.s.z), sx = CX + vx, sy = STRIKER_Y + vz * Z, ry = RS * Z * 0.6;
   seg(CX, RING_Y, sx, sy - ry);
   outline(sx, sy, RS, ry, 16);
@@ -284,7 +305,7 @@ function drawStriker(sim) {
 }
 
 // the furin: hook, crown, the dome's two silhouette edges and its rim, the clapper inside, the strip below
-function drawFurin(sim) {
+function drawFurin(sim: Sim) {
   const f = sim.fu;
   seg(CX, 0, CX, BELL_TOP - 5 * Z);
   outline(CX, BELL_TOP, 5, 5 * Z, 10);
@@ -306,7 +327,7 @@ function drawFurin(sim) {
 }
 // The bell's silhouette on the paper (raster pixels): its half-width at each row, for hit-testing and tests.
 export function bellOutline() {
-  const rows = [];
+  const rows: { y: number; x0: number; x1: number }[] = [];
   for (let y = BELL_TOP - 5 * Z; y <= BELL_RIM + FRB * Z; y += 1) rows.push({ y: toY(y), x0: toX(CX - bellR(y)), x1: toX(CX + bellR(y)) });
   return rows;
 }
@@ -315,14 +336,25 @@ export function bellOutline() {
 // Chain: a chime's voices -> its input gain (VOLUME while its SOUND is on, else 0) -> its Tone low-pass filter
 // (FREQUENCY = cutoff, RESONANCE = Q) -> its router -> the bus of its channel pair (compressor -> gain -> splitter)
 // -> one channel merger -> the device's N discrete channels. Buses are made only for pairs a chime uses.
-let Tone = null, actx = null, master = null, muted = false;
-const sounding = new Set(); // chimes with SOUND on
-const graphs = new Set();   // chimes with an audio graph (their routers follow the device's channel count)
+type ToneLib = typeof import("tone");
+// a built-in voice: additive partials, or the FM synth
+export type Voice = { id: string; name: string; gm: number } & (
+  | { fm: true }
+  | { fm?: undefined; partials: number[]; amps: number[]; dmul: number; pd: number; oct?: number; chorus?: boolean; trem?: boolean }
+);
+interface Bus { comp: DynamicsCompressorNode; split: ChannelSplitterNode }
+interface Graph {
+  input: GainNode; filter: Filter; fm: PolySynth<FMSynth> | null; mono: GainNode | null; pick: ChannelMergerNode | null; routed: string;
+}
+// Tone and actx are set once audio starts (Tone may load earlier); everything that plays or routes runs after that.
+let Tone: ToneLib | null = null, actx: AudioContext | null = null, master: ChannelMergerNode | null = null, muted = false;
+const sounding = new Set<ChimeState>(); // chimes with SOUND on
+const graphs = new Set<ChimeState>();   // chimes with an audio graph (their routers follow the device's channel count)
 const MAX_OUT = 32;
-let sinkId = "", sinkListed = false, outN = 2, merger = null;
-const buses = new Map();     // pair index k (channels 2k+1, 2k+2) -> { comp, split }
-const outListeners = new Set();
-export const VOICES = [
+let sinkId = "", sinkListed = false, outN = 2, merger: ChannelMergerNode | null = null;
+const buses = new Map<number, Bus>();     // pair index k (channels 2k+1, 2k+2) -> { comp, split }
+const outListeners = new Set<(n: number) => void>();
+export const VOICES: Voice[] = [
   { id: "tubular", name: "TUBULAR BELLS", gm: 14, partials: [1, 2.756, 5.404, 8.933], amps: [1, 0.55, 0.3, 0.16], dmul: 1, pd: 1.2, chorus: true },
   { id: "glock", name: "GLOCKENSPIEL", gm: 9, partials: [1, 2.756, 5.404], amps: [1, 0.4, 0.2], dmul: 0.45, pd: 1.5, oct: 12 },
   { id: "vibes", name: "VIBRAPHONE", gm: 11, partials: [1, 4, 10], amps: [1, 0.25, 0.08], dmul: 0.9, pd: 2, trem: true },
@@ -334,10 +366,10 @@ export const VOICES = [
 ];
 export const GM_FAMILIES = ["PIANO", "CHROMATIC PERCUSSION", "ORGAN", "GUITAR", "BASS", "STRINGS", "ENSEMBLE", "BRASS", "REED", "PIPE",
   "SYNTH LEAD", "SYNTH PAD", "SYNTH EFFECTS", "ETHNIC", "PERCUSSIVE", "SOUND EFFECTS"];
-export const fonts = [];
+export const fonts: Font[] = [];
 
 // value: "v<index>" for a built-in voice, "s<font>:<preset>" for a soundfont preset; null when the preset doesn't exist
-function voiceFor(value) {
+function voiceFor(value: string | null | undefined): { voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null } | null {
   if (value && value[0] === "s") {
     const [fi, pi] = value.slice(1).split(":").map(Number), f = fonts[fi];
     if (!f || !f.presets[pi]) return null;
@@ -345,18 +377,18 @@ function voiceFor(value) {
   }
   return { voice: VOICES[+String(value || "v0").slice(1)] || VOICES[0], sfPreset: null, sfRegions: null };
 }
-export function findPreset(fi, bank, prog) { return fonts[fi] ? fonts[fi].presets.findIndex(p => p.bank === bank && p.preset === prog) : -1; }
+export function findPreset(fi: number, bank: number, prog: number) { return fonts[fi] ? fonts[fi].presets.findIndex(p => p.bank === bank && p.preset === prog) : -1; }
 // a whole .sf2 in memory (every sample present); loadFont below fetches the bundled one in pieces
-export function addFont(arrayBuffer, name, gm = false) {
+export function addFont(arrayBuffer: ArrayBuffer, name: string, gm = false) {
   const f = parseSF2(arrayBuffer, name); f.gm = gm; f.all = true;
   if (gm) fonts.unshift(f); else fonts.push(f);
   return f;
 }
 
-let unlockEl = null;
+let unlockEl: HTMLAudioElement | null = null;
 function silentWav() {
   const n = 4410, b = new DataView(new ArrayBuffer(44 + n * 2));
-  const s = (o, t) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
+  const s = (o: number, t: string) => [...t].forEach((c, i) => b.setUint8(o + i, c.charCodeAt(0)));
   s(0, "RIFF"); b.setUint32(4, 36 + n * 2, true); s(8, "WAVEfmt "); b.setUint32(16, 16, true); b.setUint16(20, 1, true); b.setUint16(22, 1, true);
   b.setUint32(24, 44100, true); b.setUint32(28, 88200, true); b.setUint16(32, 2, true); b.setUint16(34, 16, true); s(36, "data"); b.setUint32(40, n * 2, true);
   let bin = ""; new Uint8Array(b.buffer).forEach(x => bin += String.fromCharCode(x));
@@ -370,36 +402,36 @@ function unlockAudio() {
     if (!unlockEl) { unlockEl = new Audio(silentWav()); unlockEl.loop = true; unlockEl.setAttribute("playsinline", ""); }
     const p = unlockEl.play(); if (p) p.catch(() => {});
   } catch (e) {}
-  try { const sb = actx.createBufferSource(); sb.buffer = actx.createBuffer(1, 1, 22050); sb.connect(actx.destination); sb.start(0); } catch (e) {}
+  try { const sb = actx!.createBufferSource(); sb.buffer = actx!.createBuffer(1, 1, 22050); sb.connect(actx!.destination); sb.start(0); } catch (e) {}
 }
 // Load Tone.js ahead of the first tap so the tap itself can start audio (Safari needs that).
 export function preloadAudio() { if (!Tone) import("tone").then(m => { Tone = m; }).catch(() => {}); }
 // ---------- output device and channels ----------
 // OUTPUT "1-2", "3-4", … (a pair) or "1", "2", … (one channel) -> { first, count } (first is 0-based)
-export function outputOf(s) {
+export function outputOf(s: string | null | undefined): Output {
   const m = /^(\d+)(?:-(\d+))?$/.exec(String(s || ""));
   return m ? { first: +m[1] - 1, count: m[2] ? 2 : 1 } : { first: 0, count: 2 };
 }
 export function audioOutSupported() { return typeof AudioContext !== "undefined" && "setSinkId" in AudioContext.prototype; }
-const channelsNow = () => Math.max(1, Math.min(MAX_OUT, actx.destination.maxChannelCount || 2));
+const channelsNow = () => Math.max(1, Math.min(MAX_OUT, actx!.destination.maxChannelCount || 2));
 // the device's channel count, or null before audio has started
 export function outputChannels() { return actx ? outN : null; }
 // listeners get the channel count when audio starts and whenever it changes; returns the unsubscribe
-export function onOutputChange(fn) { outListeners.add(fn); return () => outListeners.delete(fn); }
+export function onOutputChange(fn: (n: number) => void): () => void { outListeners.add(fn); return () => outListeners.delete(fn); }
 // "" is the system default. Before audio starts it is only remembered: startAudio opens the context on it when
 // `listed` (the browser lists that device now), and switches to it right after otherwise, since an unknown id in
 // the constructor breaks the context instead of failing.
-export async function setAudioDevice(id, { listed = false } = {}) {
+export async function setAudioDevice(id: string | null, { listed = false }: { listed?: boolean } = {}) {
   sinkId = id || ""; sinkListed = !!(sinkId && listed);
   if (!actx || !actx.setSinkId) return;
   try { await actx.setSinkId(sinkId); } catch (e) { console.warn("audio device", e); }
   refreshOutput();
 }
-function bus(k) {
-  if (buses.has(k)) return buses.get(k);
-  const comp = actx.createDynamicsCompressor();
+function bus(k: number): Bus {
+  if (buses.has(k)) return buses.get(k)!;
+  const comp = actx!.createDynamicsCompressor();
   comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.25;
-  const gain = actx.createGain(), split = actx.createChannelSplitter(2);
+  const gain = actx!.createGain(), split = actx!.createChannelSplitter(2);
   gain.gain.value = 0.85;
   comp.connect(gain); gain.connect(split);
   const b = { comp, split };
@@ -407,42 +439,42 @@ function bus(k) {
   wireBus(k, b);
   return b;
 }
-function wireBus(k, b) {
-  if (2 * k < outN) b.split.connect(merger, 0, 2 * k);
-  if (2 * k + 1 < outN) b.split.connect(merger, 1, 2 * k + 1);
+function wireBus(k: number, b: Bus) {
+  if (2 * k < outN) b.split.connect(merger!, 0, 2 * k);
+  if (2 * k + 1 < outN) b.split.connect(merger!, 1, 2 * k + 1);
 }
 // one merger input per device channel, nothing up- or down-mixed on the way out
 function buildMerger() {
   if (merger) merger.disconnect();
   buses.forEach(b => b.split.disconnect());
-  const d = actx.destination;
+  const d = actx!.destination;
   d.channelCount = outN; d.channelCountMode = "explicit"; d.channelInterpretation = "discrete";
-  merger = actx.createChannelMerger(outN);
+  merger = actx!.createChannelMerger(outN);
   merger.connect(d);
   buses.forEach((b, k) => wireBus(k, b));
 }
 // where a chime is heard: its OUTPUT, or 1-2 when the device doesn't have those channels
-function effectiveOutput(ch) {
+function effectiveOutput(ch: ChimeState): Output {
   const o = ch.P.output;
   return o.first + o.count <= outN ? o : { first: 0, count: Math.min(2, outN) };
 }
 // connect the filter to its bus: a pair directly, one channel through a mono fold into one side of its pair's bus
-function route(ch) {
-  const g = ch.graph, o = effectiveOutput(ch), key = o.first + ":" + o.count;
+function route(ch: ChimeState) {
+  const g = ch.graph!, o = effectiveOutput(ch), key = o.first + ":" + o.count;
   if (g.routed === key) return;
   g.filter.disconnect();
-  if (g.mono) { g.mono.disconnect(); g.pick.disconnect(); }
+  if (g.mono) { g.mono.disconnect(); g.pick!.disconnect(); }
   const b = bus(o.first >> 1);
-  if (o.count === 2) Tone.connect(g.filter, b.comp);
+  if (o.count === 2) Tone!.connect(g.filter, b.comp);
   else {
     if (!g.mono) {
-      g.mono = actx.createGain();
+      g.mono = actx!.createGain();
       g.mono.channelCount = 1; g.mono.channelCountMode = "explicit"; g.mono.channelInterpretation = "speakers";
-      g.pick = actx.createChannelMerger(2);
+      g.pick = actx!.createChannelMerger(2);
     }
-    Tone.connect(g.filter, g.mono);
-    g.mono.connect(g.pick, 0, o.first & 1);
-    g.pick.connect(b.comp);
+    Tone!.connect(g.filter, g.mono);
+    g.mono.connect(g.pick!, 0, o.first & 1);
+    g.pick!.connect(b.comp);
   }
   g.routed = key;
 }
@@ -454,7 +486,8 @@ function refreshOutput() {
   if (changed) outListeners.forEach(fn => fn(outN));
 }
 function setupOutput() {
-  actx = Tone.getContext().rawContext;
+  // the native context startAudio made
+  actx = Tone!.getContext().rawContext as AudioContext;
   outN = channelsNow();
   buildMerger();
   if (actx.addEventListener) actx.addEventListener("sinkchange", refreshOutput);
@@ -466,9 +499,9 @@ export async function startAudio() {
   if (!Tone) Tone = await import("tone");
   if (!master) {
     // our own context, so it can open on the chosen device (setSinkId lives on the native context)
-    const opts = { latencyHint: "interactive" };
+    const opts: AudioContextOptions = { latencyHint: "interactive" };
     if (sinkListed && audioOutSupported()) opts.sinkId = sinkId;
-    let ctx;
+    let ctx: AudioContext;
     try { ctx = new AudioContext(opts); } catch (e) { ctx = new AudioContext({ latencyHint: "interactive" }); }
     Tone.setContext(new Tone.Context(ctx));
     setupOutput();
@@ -477,31 +510,32 @@ export async function startAudio() {
   }
   unlockAudio();
   const started = Promise.resolve(Tone.start()).catch(() => {});
-  const resumed = Promise.resolve(actx.resume()).catch(() => {});
+  const resumed = Promise.resolve(actx!.resume()).catch(() => {});
   await Promise.all([started, resumed]);
 }
 // Silence the browser's own sound for every chime (for example while a MIDI device plays the notes) without stopping anything.
-export function setMuted(m) { muted = !!m; }
+export function setMuted(m: boolean) { muted = !!m; }
 
-function buildGraph(ch) {
-  const input = actx.createGain();
+function buildGraph(ch: ChimeState) {
+  const input = actx!.createGain();
   input.gain.value = 0;
-  const filter = new Tone.Filter({ type: "lowpass", frequency: ch.P.cutoff, Q: ch.P.q, rolloff: -12 });
-  Tone.connect(input, filter);
+  const filter = new Tone!.Filter({ type: "lowpass", frequency: ch.P.cutoff, Q: ch.P.q, rolloff: -12 });
+  Tone!.connect(input, filter);
   ch.graph = { input, filter, fm: null, mono: null, pick: null, routed: "" };
   graphs.add(ch);
   route(ch);
 }
 // ramp the input gain to VOLUME (SOUND on) or 0 over about 40 ms, so a VOLUME drag doesn't click
-function level(ch) {
+function level(ch: ChimeState) {
   if (!ch.graph) return;
   const g = ch.graph.input.gain;
-  g.cancelScheduledValues(actx.currentTime);
-  g.setTargetAtTime(ch.sound ? ch.P.volume : 0, actx.currentTime, 0.013);
+  g.cancelScheduledValues(actx!.currentTime);
+  g.setTargetAtTime(ch.sound ? ch.P.volume : 0, actx!.currentTime, 0.013);
 }
-function fmFor(ch) {
-  if (ch.graph.fm) return ch.graph.fm;
-  const fm = new Tone.PolySynth(Tone.FMSynth, {
+function fmFor(ch: ChimeState) {
+  const graph = ch.graph!;
+  if (graph.fm) return graph.fm;
+  const fm = new Tone!.PolySynth(Tone!.FMSynth, {
     harmonicity: 3.01, modulationIndex: 12,
     oscillator: { type: "sine" }, modulation: { type: "sine" },
     envelope: { attack: 0.002, decay: 2, sustain: 0, release: 1 },
@@ -509,40 +543,40 @@ function fmFor(ch) {
   });
   fm.maxPolyphony = 24;
   fm.volume.value = -10;
-  fm.connect(ch.graph.input);
-  return (ch.graph.fm = fm);
+  fm.connect(graph.input);
+  return (graph.fm = fm);
 }
 // a silent chime (SOUND off, VOLUME 0 or muted) schedules nothing
-function ring(ch, i, vel) {
+function ring(ch: ChimeState, i: number, vel: number) {
   const P = ch.P;
-  if (muted || !ch.sound || !(P.volume > 0) || !ch.graph || actx.state !== "running") return;
-  const n = noteAt(P, i), t = actx.currentTime + 0.005;
+  if (muted || !ch.sound || !(P.volume > 0) || !ch.graph || actx!.state !== "running") return;
+  const n = noteAt(P, i), t = actx!.currentTime + 0.005;
   if (ch.sfRegions) return playSF(ch, n, vel, t);
-  playVoice(ch, ch.voice, n, vel, t);
+  playVoice(ch, ch.voice!, n, vel, t);
 }
 // a built-in voice: additive partials, or the FM synth
-function playVoice(ch, voice, n, vel, t) {
-  const P = ch.P, bus = ch.graph.input;
+function playVoice(ch: ChimeState, voice: Voice, n: number, vel: number, t: number) {
+  const P = ch.P, bus = ch.graph!.input;
   if (voice.fm) {
     const fm = fmFor(ch);
     fm.set({ envelope: { decay: P.decay, release: P.decay * 0.3 }, modulationEnvelope: { decay: Math.min(1.5, P.decay * 0.25) } });
-    fm.triggerAttackRelease(mtof(n), P.decay, Tone.now() + 0.005, vel / 127);
+    fm.triggerAttackRelease(mtof(n), P.decay, Tone!.now() + 0.005, vel / 127);
     return;
   }
   const f0 = mtof(n + (voice.oct || 0)), amp = Math.pow(vel / 127, 1.4) * 0.2, D = Math.max(0.08, P.decay * voice.dmul);
   voice.partials.forEach((r, k) => {
-    const f = f0 * r; if (f > actx.sampleRate * 0.45) return;
+    const f = f0 * r; if (f > actx!.sampleRate * 0.45) return;
     const a = amp * voice.amps[k], T = D / (1 + k * voice.pd);
     const dets = voice.chorus && k === 0 ? [1, 1.0009] : [1];
     dets.forEach((dt, vi) => {
-      const o = actx.createOscillator(), g = actx.createGain();
+      const o = actx!.createOscillator(), g = actx!.createGain();
       o.frequency.value = f * dt;
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(vi ? a * 0.4 : a, t + 0.003);
       g.gain.setTargetAtTime(0, t + 0.003, T / 6.91);
       let last = g;
       if (voice.trem && k === 0) {
-        const lfo = actx.createOscillator(), lg = actx.createGain(), tg = actx.createGain();
+        const lfo = actx!.createOscillator(), lg = actx!.createGain(), tg = actx!.createGain();
         lfo.frequency.value = 5.5; lg.gain.value = 0.35; tg.gain.value = 0.65;
         lfo.connect(lg); lg.connect(tg.gain); g.connect(tg); last = tg;
         lfo.start(t); lfo.stop(t + T + 0.3);
@@ -552,12 +586,32 @@ function playVoice(ch, voice, n, vel, t) {
   });
 }
 // ---------- SF2 sampler ----------
-function parseSF2(ab, fileName) {
+interface Chunk { o: number; size: number }
+// a generator: its operator and its amount read as two bytes (a range), signed and unsigned
+interface Gen { op: number; lo: number; hi: number; s: number; u: number }
+type Zone = Record<number, Gen>;
+export interface PresetHeader { name: string; preset: number; bank: number; bag: number }
+interface InstHeader { name: string; bag: number }
+interface SampleHeader { name: string; start: number; end: number; ls: number; le: number; rate: number; root: number; corr: number; type: number }
+export interface Font {
+  ab: ArrayBuffer; fileName: string; cache: Map<number, AudioBuffer>; smpl: Chunk;
+  phdr: PresetHeader[]; inst: InstHeader[]; shdr: SampleHeader[]; presets: PresetHeader[];
+  pbag: number[]; pgen: Gen[]; ibag: number[]; igen: Gen[];
+  gm?: boolean; all?: boolean;
+  // a font loaded in pieces (installFont); a whole font has `all` instead
+  url?: string; signal?: AbortSignal; loaded?: Set<number>; pending?: Map<number, Promise<void>>;
+}
+// one sample over a key and velocity range, with the preset's and instrument's generators merged
+export interface Region {
+  kl: number; kh: number; vl: number; vh: number; f: Font; si: number; s: SampleHeader;
+  root: number; tune: number; att: number; pan: number; loop: boolean;
+}
+function parseSF2(ab: ArrayBuffer, fileName: string): Font {
   const dv = new DataView(ab);
-  const str = (o, n) => { let s = ""; for (let i = 0; i < n; i++) { const c = dv.getUint8(o + i); if (!c) break; s += String.fromCharCode(c); } return s.trim(); };
+  const str = (o: number, n: number) => { let s = ""; for (let i = 0; i < n; i++) { const c = dv.getUint8(o + i); if (!c) break; s += String.fromCharCode(c); } return s.trim(); };
   if (str(0, 4) !== "RIFF" || str(8, 4) !== "sfbk") throw new Error("This file is not a SoundFont 2 (.sf2) file.");
-  const ch = {};
-  (function walk(o, end) {
+  const ch: Record<string, Chunk> = {};
+  (function walk(o: number, end: number) {
     while (o + 8 <= end) {
       const id = str(o, 4), size = dv.getUint32(o + 4, true);
       if (id === "LIST") walk(o + 12, Math.min(end, o + 8 + size)); else ch[id] = { o: o + 8, size };
@@ -565,32 +619,32 @@ function parseSF2(ab, fileName) {
     }
   })(12, Math.min(ab.byteLength, 8 + dv.getUint32(4, true)));
   for (const k of ["smpl", "phdr", "pbag", "pgen", "inst", "ibag", "igen", "shdr"]) if (!ch[k]) throw new Error("The .sf2 file is missing its " + k + " chunk.");
-  const rec = (id, sz, fn) => { const c = ch[id], out = []; for (let i = 0; i + sz <= c.size; i += sz) out.push(fn(c.o + i)); return out; };
-  const gen = o => ({ op: dv.getUint16(o, true), lo: dv.getUint8(o + 2), hi: dv.getUint8(o + 3), s: dv.getInt16(o + 2, true), u: dv.getUint16(o + 2, true) });
-  const phdr = rec("phdr", 38, o => ({ name: str(o, 20), preset: dv.getUint16(o + 20, true), bank: dv.getUint16(o + 22, true), bag: dv.getUint16(o + 24, true) }));
-  const inst = rec("inst", 22, o => ({ name: str(o, 20), bag: dv.getUint16(o + 20, true) }));
-  const shdr = rec("shdr", 46, o => ({ name: str(o, 20), start: dv.getUint32(o + 20, true), end: dv.getUint32(o + 24, true), ls: dv.getUint32(o + 28, true), le: dv.getUint32(o + 32, true),
+  const rec = <T,>(id: string, sz: number, fn: (o: number) => T) => { const c = ch[id], out: T[] = []; for (let i = 0; i + sz <= c.size; i += sz) out.push(fn(c.o + i)); return out; };
+  const gen = (o: number): Gen => ({ op: dv.getUint16(o, true), lo: dv.getUint8(o + 2), hi: dv.getUint8(o + 3), s: dv.getInt16(o + 2, true), u: dv.getUint16(o + 2, true) });
+  const phdr = rec("phdr", 38, (o): PresetHeader => ({ name: str(o, 20), preset: dv.getUint16(o + 20, true), bank: dv.getUint16(o + 22, true), bag: dv.getUint16(o + 24, true) }));
+  const inst = rec("inst", 22, (o): InstHeader => ({ name: str(o, 20), bag: dv.getUint16(o + 20, true) }));
+  const shdr = rec("shdr", 46, (o): SampleHeader => ({ name: str(o, 20), start: dv.getUint32(o + 20, true), end: dv.getUint32(o + 24, true), ls: dv.getUint32(o + 28, true), le: dv.getUint32(o + 32, true),
     rate: dv.getUint32(o + 36, true), root: dv.getUint8(o + 40), corr: dv.getInt8(o + 41), type: dv.getUint16(o + 44, true) }));
   return { ab, fileName, cache: new Map(), smpl: ch.smpl, phdr, inst, shdr, presets: phdr.slice(0, -1),
     pbag: rec("pbag", 4, o => dv.getUint16(o, true)), pgen: rec("pgen", 4, gen),
     ibag: rec("ibag", 4, o => dv.getUint16(o, true)), igen: rec("igen", 4, gen) };
 }
-function zonesOf(bags, gens, from, to) {
-  const zs = [];
-  for (let b = from; b < to; b++) { const z = {}; for (let g = bags[b]; g < (bags[b + 1] ?? gens.length); g++) z[gens[g].op] = gens[g]; zs.push(z); }
+function zonesOf(bags: number[], gens: Gen[], from: number, to: number) {
+  const zs: Zone[] = [];
+  for (let b = from; b < to; b++) { const z: Zone = {}; for (let g = bags[b]; g < (bags[b + 1] ?? gens.length); g++) z[gens[g].op] = gens[g]; zs.push(z); }
   return zs;
 }
-function resolvePreset(f, pi) {
+function resolvePreset(f: Font, pi: number) {
   const pz = zonesOf(f.pbag, f.pgen, f.phdr[pi].bag, f.phdr[pi + 1].bag);
-  const pg = pz.length && !pz[0][41] ? pz.shift() : {};
-  const regions = [];
-  const range = (z, op) => z[op] ? [z[op].lo, z[op].hi] : null;
+  const pg: Zone = pz.length && !pz[0][41] ? pz.shift()! : {};
+  const regions: Region[] = [];
+  const range = (z: Zone, op: number): [number, number] | null => z[op] ? [z[op].lo, z[op].hi] : null;
   for (const z of pz) {
     if (!z[41]) continue;
     const pzm = { ...pg, ...z }, ii = z[41].u;
     if (!f.inst[ii + 1]) continue;
     const iz = zonesOf(f.ibag, f.igen, f.inst[ii].bag, f.inst[ii + 1].bag);
-    const ig = iz.length && !iz[0][53] ? iz.shift() : {};
+    const ig: Zone = iz.length && !iz[0][53] ? iz.shift()! : {};
     const pk = range(pzm, 43) || [0, 127], pv = range(pzm, 44) || [0, 127];
     for (const zz of iz) {
       if (!zz[53]) continue;
@@ -610,13 +664,13 @@ function resolvePreset(f, pi) {
   }
   return regions;
 }
-function sampleBuffer(r) {
+function sampleBuffer(r: Region) {
   const f = r.f;
-  if (f.cache.has(r.si)) return f.cache.get(r.si);
+  if (f.cache.has(r.si)) return f.cache.get(r.si)!;
   const s = r.s, len = Math.max(1, s.end - s.start), off = f.smpl.o + s.start * 2;
   const pcm = new Int16Array(f.ab.slice(off, off + len * 2));
   const rate = Math.min(192000, Math.max(8000, s.rate || 44100));
-  const b = actx.createBuffer(1, len, rate), d = b.getChannelData(0);
+  const b = actx!.createBuffer(1, len, rate), d = b.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = pcm[i] / 32768;
   f.cache.set(r.si, b);
   return b;
@@ -628,8 +682,10 @@ function sampleBuffer(r) {
 // sample indices whose bytes are in, f.pending the downloads in flight; f.all means the whole file is in (a server
 // that ignores Range, or addFont).
 const HEAD = 4096, MERGE_GAP = 16384;
-const hasSample = r => r.f.all || r.f.loaded.has(r.si);
-async function getRange(url, from, to, signal) {
+// a Content-Range answer is a piece of the file (with its total size); a plain 200 is the whole file
+type RangeResult = { whole: ArrayBuffer; ab?: undefined; total?: undefined } | { whole?: undefined; ab: ArrayBuffer; total: number };
+const hasSample = (r: Region) => r.f.all || r.f.loaded!.has(r.si);
+async function getRange(url: string, from: number, to: number, signal?: AbortSignal): Promise<RangeResult> {
   const res = await fetch(url, { headers: { Range: `bytes=${from}-${to}` }, signal });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   const ab = await res.arrayBuffer();
@@ -637,7 +693,7 @@ async function getRange(url, from, to, signal) {
   const m = /\/(\d+)\s*$/.exec(res.headers.get("Content-Range") || "");
   return { ab, total: m ? +m[1] : NaN };
 }
-function installFont(f, name, url, signal) {
+function installFont(f: Font, name: string, url: string, signal?: AbortSignal) {
   Object.assign(f, { gm: true, url, signal, loaded: new Set(), pending: new Map() });
   const at = fonts.findIndex(g => g.gm);
   if (at >= 0) fonts.splice(at, 1);
@@ -645,16 +701,16 @@ function installFont(f, name, url, signal) {
   return f;
 }
 // Fetch the font's header and tables (about 205 KB of the bundled 6 MB); samples come later through loadSamples.
-export async function loadFont(url, name, { signal } = {}) {
-  const whole = ab => { const f = installFont(parseSF2(ab, name), name, url, signal); f.all = true; return f; };
+export async function loadFont(url: string, name: string, { signal }: { signal?: AbortSignal } = {}) {
+  const whole = (ab: ArrayBuffer) => { const f = installFont(parseSF2(ab, name), name, url, signal); f.all = true; return f; };
   let r = await getRange(url, 0, HEAD - 1, signal);
   if (r.whole) return whole(r.whole);
   const total = r.total;
   if (!(total > 12)) throw new Error(`${url}: no Content-Range`);
   const buf = new Uint8Array(total);
   buf.set(new Uint8Array(r.ab), 0);
-  const got = [[0, r.ab.byteLength]], has = (a, b) => got.some(([x, y]) => a >= x && b <= y);
-  const dv = new DataView(buf.buffer), id = o => String.fromCharCode(buf[o], buf[o + 1], buf[o + 2], buf[o + 3]);
+  const got: [number, number][] = [[0, r.ab.byteLength]], has = (a: number, b: number) => got.some(([x, y]) => a >= x && b <= y);
+  const dv = new DataView(buf.buffer), id = (o: number) => String.fromCharCode(buf[o], buf[o + 1], buf[o + 2], buf[o + 3]);
   // Walk the top-level chunks for the pdta list. A chunk header just past the bytes we have (a long INFO) gets the
   // next few KB; one further on (past the samples) is the start of the tables, so fetch from there to the end.
   let o = 12, pdta = -1;
@@ -680,55 +736,69 @@ export async function loadFont(url, name, { signal } = {}) {
 }
 // Fetch the samples these regions use that aren't in yet: nearby byte ranges are merged into one request, each
 // sample is fetched once, and a failed download is forgotten so the next call tries again. Never rejects.
-export function loadSamples(regions) {
+export function loadSamples(regions: Region[] | null): Promise<void> {
   const f = regions && regions.length ? regions[0].f : null;
   if (!f || f.all) return Promise.resolve();
-  const waits = new Set(), need = new Map();
-  for (const r of regions) {
-    if (f.loaded.has(r.si)) continue;
-    if (f.pending.has(r.si)) waits.add(f.pending.get(r.si));
+  const waits = new Set<Promise<unknown>>(), need = new Map<number, [number, number]>();
+  for (const r of regions!) {
+    if (f.loaded!.has(r.si)) continue;
+    if (f.pending!.has(r.si)) waits.add(f.pending!.get(r.si)!);
     else need.set(r.si, [f.smpl.o + r.s.start * 2, f.smpl.o + Math.max(r.s.start + 1, r.s.end) * 2]);
   }
-  const runs = [];
+  const runs: { from: number; to: number; sis: number[] }[] = [];
   for (const [si, [a, b]] of [...need].sort((x, y) => x[1][0] - y[1][0])) {
     const l = runs[runs.length - 1];
     if (l && a - l.to < MERGE_GAP) { l.to = Math.max(l.to, b); l.sis.push(si); } else runs.push({ from: a, to: b, sis: [si] });
   }
   for (const run of runs) {
-    const done = getRange(f.url, run.from, run.to - 1, f.signal).then(res => {
+    const done = getRange(f.url!, run.from, run.to - 1, f.signal).then(res => {
       if (res.whole) { new Uint8Array(f.ab).set(new Uint8Array(res.whole)); f.all = true; }
       else new Uint8Array(f.ab).set(new Uint8Array(res.ab), run.from);
-      run.sis.forEach(si => f.loaded.add(si));
-    }).finally(() => run.sis.forEach(si => f.pending.delete(si)));
-    run.sis.forEach(si => f.pending.set(si, done));
+      run.sis.forEach(si => f.loaded!.add(si));
+    }).finally(() => run.sis.forEach(si => f.pending!.delete(si)));
+    run.sis.forEach(si => f.pending!.set(si, done));
     waits.add(done);
   }
   return Promise.allSettled([...waits]).then(() => {});
 }
-function playSF(ch, n, vel, t) {
-  const hits = ch.sfRegions.filter(r => n >= r.kl && n <= r.kh && vel >= r.vl && vel <= r.vh);
+function playSF(ch: ChimeState, n: number, vel: number, t: number) {
+  const hits = ch.sfRegions!.filter(r => n >= r.kl && n <= r.kh && vel >= r.vl && vel <= r.vh);
   // samples still on their way: the built-in tubular bells, through the same input (VOLUME and filter apply)
   if (hits.some(r => !hasSample(r))) return playVoice(ch, VOICES[0], n, vel, t);
   for (const r of hits) {
-    const src = actx.createBufferSource(), g = actx.createGain();
+    const src = actx!.createBufferSource(), g = actx!.createGain();
     src.buffer = sampleBuffer(r);
     src.playbackRate.value = Math.pow(2, ((n - r.root) * 100 + r.tune + r.s.corr) / 1200);
     if (r.loop && r.s.le > r.s.ls) { src.loop = true; src.loopStart = (r.s.ls - r.s.start) / src.buffer.sampleRate; src.loopEnd = (r.s.le - r.s.start) / src.buffer.sampleRate; }
     const a = Math.pow(vel / 127, 2) * Math.pow(10, -r.att * 0.4 / 200) * 0.7, T = ch.P.decay;
     g.gain.setValueAtTime(a, t);
     g.gain.setTargetAtTime(0, t + 0.02, T / 6.91);
-    let last = g;
-    if (r.pan && actx.createStereoPanner) { const p = actx.createStereoPanner(); p.pan.value = r.pan / 500; g.connect(p); last = p; }
-    src.connect(g); last.connect(ch.graph.input);
+    let last: AudioNode = g;
+    if (r.pan && "createStereoPanner" in actx!) { const p = actx!.createStereoPanner(); p.pan.value = r.pan / 500; g.connect(p); last = p; }
+    src.connect(g); last.connect(ch.graph!.input);
     src.start(t); src.stop(t + T + 0.5);
   }
 }
 
 // ---------- chimes ----------
 const DT = 1 / 240;
-const live = new Set(); // attached chimes: one shared loop steps and draws each of them
+type Rgb = [number, number, number];
+interface Hit { t: number; n: number; v: number }
+// a filter position: CUTOFF slider (x) and RESONANCE (q) at time t
+interface Cc { t: number; x: number; q: number }
+interface Recording { t0: number; hits: Hit[]; cc: Cc[] }
+export interface Take { kind: "LIVE" | "RENDER"; hits: Hit[]; dur: number; decay: number; cc: Cc[]; prog: number; bank: number; name: string }
+// a chime's own state; createChime adds its methods
+interface ChimeState {
+  P: Params; sim: Sim; streaks: Streak[]; acc: number;
+  // voice is null while a soundfont preset plays (sfPreset and sfRegions are set instead)
+  voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null;
+  sound: boolean; graph: Graph | null; ctx2d: CanvasRenderingContext2D | null; img: ImageData | null;
+  rec: Recording | null; ink: Rgb; hit: HitFn;
+}
+const live = new Set<ChimeState>(); // attached chimes: one shared loop steps and draws each of them
 let lastT = 0, raf = 0;
-function tick(now) {
+function tick(now: number) {
   const dt = Math.min(0.05, (now - (lastT || now)) / 1000); lastT = now;
   for (const ch of live) {
     ch.acc += dt;
@@ -741,14 +811,14 @@ function tick(now) {
 }
 
 // One chime: its own parameters, simulation, wind, voice, audio chain, hit listeners and recording.
-export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
-  const ch = {
+export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?: number } = {}) {
+  const ch: ChimeState = {
     P: defaultParams(), sim: makeSim(seed), streaks: makeStreaks(), acc: 0,
     voice: VOICES[0], sfPreset: null, sfRegions: null,
-    sound: false, graph: null, ctx2d: null, img: null, rec: null, ink: [0, 0, 0],
+    sound: false, graph: null, ctx2d: null, img: null, rec: null, ink: [0, 0, 0], hit: () => {},
   };
-  const listeners = new Set();
-  const noteOf = i => noteAt(ch.P, i);
+  const listeners = new Set<(i: number, vel: number) => void>();
+  const noteOf = (i: number) => noteAt(ch.P, i);
   const furin = () => ch.P.instrument === "furin";
   ch.hit = (i, vel, t) => {
     ring(ch, i, vel);
@@ -757,8 +827,8 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
   };
   const midiProgram = () => ch.sfPreset
     ? { prog: ch.sfPreset.preset & 127, bank: ch.sfPreset.bank > 127 ? 128 : ch.sfPreset.bank, name: ch.sfPreset.name }
-    : { prog: ch.voice.gm, bank: 0, name: ch.voice.name };
-  const strikeTube = i => {
+    : { prog: ch.voice!.gm, bank: 0, name: ch.voice!.name };
+  const strikeTube = (i: number) => {
     if (furin()) {
       if (i !== 0) return;
       // the clapper swings off the struck wall; its arrival at the far side isn't a second strike
@@ -783,24 +853,26 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
     noteOf, midiProgram, strikeTube, tubeSegments,
     // value: "v<index>" or "s<font>:<preset>"; an unknown preset leaves the voice as it was and returns false
     // a soundfont preset picked while the sound is on fetches its samples now (strikes play the built-in voice until then)
-    chooseVoice(value) {
+    chooseVoice(value: string | null) {
       const v = voiceFor(value);
       if (!v) return false;
       Object.assign(ch, v);
       if (ch.sound) loadSamples(ch.sfRegions);
       return true;
     },
-    setParams(p) {
+    setParams(p: Partial<Params>) {
       const P = ch.P;
       const filterMoved = (p.cutX !== undefined && p.cutX !== P.cutX) || (p.q !== undefined && p.q !== P.q);
       const volumeMoved = p.volume !== undefined && p.volume !== P.volume;
       if (p.instrument !== undefined) {
-        p = { ...p, instrument: p.instrument === "furin" ? "furin" : "chime" };
-        if (p.instrument !== P.instrument) switchInstrument(ch.sim, p.instrument);
+        const instrument: Instrument = p.instrument === "furin" ? "furin" : "chime";
+        p = { ...p, instrument };
+        if (instrument !== P.instrument) switchInstrument(ch.sim, instrument);
       }
       if (p.tubes !== undefined) {
-        p = { ...p, tubes: clampTubes(p.tubes) };
-        if (p.tubes !== ch.sim.lay.n) resize(ch.sim, p.tubes);
+        const tubes = clampTubes(p.tubes);
+        p = { ...p, tubes };
+        if (tubes !== ch.sim.lay.n) resize(ch.sim, tubes);
       }
       Object.assign(P, p);
       P.cutoff = cutoffHz(P.cutX);
@@ -815,7 +887,7 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
     outputAvailable() { return !actx || ch.P.output.first + ch.P.output.count <= outN; },
     // Turning SOUND on needs startAudio() to have run (from the tap); it plays a short arpeggio as confirmation,
     // unless `quiet` (a composition turning many chimes on at once).
-    setSound(on, { quiet = false } = {}) {
+    setSound(on: boolean, { quiet = false }: { quiet?: boolean } = {}) {
       on = !!on;
       if (on === ch.sound) return;
       ch.sound = on;
@@ -834,19 +906,20 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
         if (!sounding.size && unlockEl) unlockEl.pause();
       }
     },
-    onHit(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    onHit(fn: (i: number, vel: number) => void): () => void { listeners.add(fn); return () => listeners.delete(fn); },
     // the drawing's line color, "#rrggbb" (its MIDI channel's ink); white stays white
-    setInk(hex) { const n = parseInt(hex.slice(1), 16); ch.ink = [n >> 16, (n >> 8) & 255, n & 255]; },
-    attach(canvas) {
-      ch.ctx2d = canvas.getContext("2d");
-      ch.img = ch.ctx2d.createImageData(W, H);
+    setInk(hex: string) { const n = parseInt(hex.slice(1), 16); ch.ink = [n >> 16, (n >> 8) & 255, n & 255]; },
+    attach(canvas: HTMLCanvasElement) {
+      const ctx2d = canvas.getContext("2d")!;
+      ch.ctx2d = ctx2d;
+      ch.img = ctx2d.createImageData(W, H);
       live.add(ch);
       if (!raf) { lastT = 0; raf = requestAnimationFrame(tick); }
       return detach;
     },
     // x, y in paper pixels (0..W, 0..H). A tube is hit within 6 px of its line and its height; the nearest wins.
     // Returns the struck tube's index, or -1 for empty paper.
-    strikeAt(x, y) {
+    strikeAt(x: number, y: number) {
       if (furin()) {
         // the bell's silhouette, padded 6 px; below the rim line, the rim's width
         const py = y / K, ok = py >= BELL_TOP - 5 * Z - 6 / K && py <= BELL_RIM + FRB * Z + 6 / K
@@ -867,14 +940,14 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
     },
     recording() { return ch.rec ? { secs: ch.sim.t - ch.rec.t0, notes: ch.rec.hits.length } : null; },
     startRec() { ch.rec = { t0: ch.sim.t, hits: [], cc: [{ t: 0, x: ch.P.cutX, q: ch.P.q }] }; },
-    stopRec() {
+    stopRec(): Take | null {
       if (!ch.rec) return null;
-      const r = ch.rec, take = { kind: "LIVE", hits: r.hits, dur: ch.sim.t - r.t0, decay: ch.P.decay, cc: r.cc, ...midiProgram() };
+      const r = ch.rec, take: Take = { kind: "LIVE", hits: r.hits, dur: ch.sim.t - r.t0, decay: ch.P.decay, cc: r.cc, ...midiProgram() };
       ch.rec = null;
       return take;
     },
-    renderTake(DUR = 120) {
-      const off = makeSim((Math.random() * 2 ** 32) >>> 0, ch.sim.lay.n), hits = [];
+    renderTake(DUR = 120): Take {
+      const off = makeSim((Math.random() * 2 ** 32) >>> 0, ch.sim.lay.n), hits: Hit[] = [];
       for (let k = 0; k < 2 * 240; k++) step(off, ch.P, DT, () => {});   // let the clapper settle into the wind first
       const t0 = off.t;
       for (let k = 0; k < DUR * 240; k++) step(off, ch.P, DT, (i, v, t) => hits.push({ t: t - t0, n: noteOf(i), v }));
@@ -888,20 +961,21 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 } = {}) {
       if (ch.graph) {
         const g = ch.graph;
         g.input.disconnect(); g.filter.dispose(); if (g.fm) g.fm.dispose();
-        if (g.mono) { g.mono.disconnect(); g.pick.disconnect(); }
+        if (g.mono) { g.mono.disconnect(); g.pick!.disconnect(); }
         graphs.delete(ch); ch.graph = null;
       }
     },
   });
 }
+export type Chime = ReturnType<typeof createChime>;
 
 // ---------- MIDI ----------
-function vlq(n) { const out = [n & 0x7f]; while ((n >>= 7)) out.unshift((n & 0x7f) | 0x80); return out; }
-function buildMidi(t) {
+function vlq(n: number) { const out = [n & 0x7f]; while ((n >>= 7)) out.unshift((n & 0x7f) | 0x80); return out; }
+function buildMidi(t: Take) {
   const TPS = 960, offT = Math.max(1, Math.round(t.decay * TPS));
-  const byNote = {};
+  const byNote: Record<string, { tick: number; v: number }[]> = {};
   t.hits.forEach(h => (byNote[h.n] = byNote[h.n] || []).push({ tick: Math.round(h.t * TPS), v: h.v }));
-  const ev = [];
+  const ev: { tick: number; o: number; b: number[] }[] = [];
   for (const n in byNote) {
     const list = byNote[n].sort((a, b) => a.tick - b.tick);
     list.forEach((h, k) => {
@@ -914,8 +988,8 @@ function buildMidi(t) {
   }
   const ch = t.bank === 128 ? 9 : 0;
   ev.forEach(e => { e.b[0] |= ch; });
-  const cc74 = x => Math.max(0, Math.min(127, Math.round(x * 127)));
-  const cc71 = q => Math.max(0, Math.min(127, Math.round((q - 0.5) / 17.5 * 127)));
+  const cc74 = (x: number) => Math.max(0, Math.min(127, Math.round(x * 127)));
+  const cc71 = (q: number) => Math.max(0, Math.min(127, Math.round((q - 0.5) / 17.5 * 127)));
   let lx = -1, lq = -1;
   for (const c of t.cc) {
     const tick = Math.max(0, Math.round(c.t * TPS)), a = cc74(c.x), b = cc71(c.q);

@@ -5,13 +5,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SCALE_LIST, VOICES, addFont, fonts } from "../lib/engine.js";
+import { SCALE_LIST, VOICES, addFont, fonts } from "../lib/engine.ts";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sf2 = readFileSync(path.join(root, "public/TimGM6mb.sf2"));
 addFont(sf2.buffer.slice(sf2.byteOffset, sf2.byteOffset + sf2.length), "TimGM6mb", true);
 
-const voices = {};
+const voices: Record<string, string> = {};
 VOICES.forEach((v, i) => { voices[`v${i}`] = v.name; });
 fonts[0].presets.forEach((p, i) => { voices[`s0:${i}`] = p.name.toUpperCase(); });
 

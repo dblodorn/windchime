@@ -57,7 +57,7 @@ pnpm dev        # http://localhost:3000
 
 Saving compositions needs `DMBK_GRAPHQL_API_KEY` in `.env.local`. Reading the list works without it.
 
-Built with Next.js 15 (App Router), React 19, [Tone.js](https://tonejs.github.io/), Tailwind CSS v4 and shadcn/ui, in plain JavaScript. The engine (simulation, drawing, audio, SF2 sampler) is `lib/engine.js`, and the UI is `components/Chime.jsx`. `CLAUDE.md` has the full architecture notes. Every push to `main` deploys to production on Vercel.
+Built with Next.js 15 (App Router), React 19, [Tone.js](https://tonejs.github.io/), Tailwind CSS v4 and shadcn/ui, in TypeScript. The engine (simulation, drawing, audio, SF2 sampler) is `lib/engine.ts`, and the UI is `components/Chime.tsx`. `CLAUDE.md` has the full architecture notes. Every push to `main` deploys to production on Vercel.
 
 ## Credits
 

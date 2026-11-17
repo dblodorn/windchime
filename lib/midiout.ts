@@ -1,25 +1,27 @@
 // Web MIDI output: sends each chime strike to a hardware or virtual MIDI port.
 // Browser support: Chrome, Edge, Opera and Firefox (with a permission prompt). Safari and iOS have no Web MIDI.
 
-let access = null;
-let pending = null;   // in-flight requestMIDIAccess, so a double click asks once
-let output = null;    // the live port, written only by setLive()
+let access: MIDIAccess | null = null;
+let pending: Promise<MIDIAccess> | null = null;   // in-flight requestMIDIAccess, so a double click asks once
+let output: MIDIOutput | null = null;    // the live port, written only by setLive()
 let wanted = "";      // name of the port the user chose (or the remembered one); survives unplugging
 let linkSeq = 0;      // bumps whenever the live port changes, so the UI can resend program/CC
 let lastError = "";
 // Every message takes its channel (1-16): each chime unit sends on its own.
-const offTimers = new Map(); // "channel:note" -> { timer, end, srcs }: one pending note-off per sounding key
-const listeners = new Set();
+// srcs: the striking tubes (`${unitId}:${i}`) sounding the key; end: when its note-off is due (ms)
+interface NoteOff { timer?: ReturnType<typeof setTimeout>; end: number; srcs: Set<string> }
+const offTimers = new Map<string, NoteOff>(); // "channel:note" -> { timer, end, srcs }: one pending note-off per sounding key
+const listeners = new Set<() => void>();
 
 export const supported = () => typeof navigator !== "undefined" && typeof navigator.requestMIDIAccess === "function";
 
 function emit() { listeners.forEach(fn => fn()); }
-export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+export function onChange(fn: () => void): () => void { listeners.add(fn); return () => listeners.delete(fn); }
 
 const liveOutputs = () => (access ? [...access.outputs.values()].filter(o => o.state === "connected") : []);
 
 // The only place `output` changes. Opens the port so its state reads OPEN before the first note.
-function setLive(port) {
+function setLive(port: MIDIOutput | null) {
   if (port === output) return;
   output = port;
   linkSeq++;
@@ -35,7 +37,7 @@ function setLive(port) {
 }
 
 // Pick up the wanted port when it is present. On connect, fall back to the only port there is.
-function adopt(first) {
+function adopt(first: boolean) {
   const outs = liveOutputs();
   const match = wanted && outs.find(o => o.name === wanted);
   if (match) {
@@ -43,12 +45,12 @@ function adopt(first) {
     return;
   }
   if (first && !output && outs.length === 1) {
-    if (!wanted) wanted = outs[0].name;
+    if (!wanted) wanted = outs[0].name || "";
     setLive(outs[0]);
   }
 }
 
-function onState(e) {
+function onState(e: MIDIConnectionEvent) {
   const p = e.port;
   if (output && p && p.id === output.id && p.state === "disconnected") {
     // the port is gone: forget its sounding notes without sending, keep `wanted` for the reconnect
@@ -80,16 +82,16 @@ export async function connect() {
 export const isConnected = () => !!access;
 
 // Seed the remembered port name before connect().
-export function setWanted(name) { wanted = name || ""; }
+export function setWanted(name: string | null | undefined) { wanted = name || ""; }
 
 export function listOutputs() {
   return liveOutputs().map(o => ({ id: o.id, name: o.name || "Unnamed port", manufacturer: o.manufacturer || "" }));
 }
 
-export function selectOutput(id) {
+export function selectOutput(id: string | null) {
   const port = (access && id && access.outputs.get(id)) || null;
   if (output && port !== output) allNotesOff();
-  wanted = port ? port.name : "";
+  wanted = port ? port.name || "" : "";
   setLive(port);
   emit();
   return !!output;
@@ -97,7 +99,11 @@ export function selectOutput(id) {
 export const currentOutput = () => (output ? { id: output.id, name: output.name } : null);
 
 // One snapshot for the UI.
-export function status() {
+export interface MidiStatus {
+  connected: boolean; wanted: string; linkSeq: number; error: string;
+  port: { id: string; name: string; manufacturer: string; state: MIDIPortDeviceState; connection: MIDIPortConnectionState } | null;
+}
+export function status(): MidiStatus {
   return {
     connected: !!access,
     wanted,
@@ -107,37 +113,37 @@ export function status() {
   };
 }
 
-function send(bytes) {
+function send(bytes: number[]) {
   if (!output) return;
   try { output.send(bytes); } catch (e) { /* port closed mid-send */ }
 }
-const nib = ch => (Math.max(1, Math.min(16, ch | 0)) - 1);
+const nib = (ch: number) => (Math.max(1, Math.min(16, ch | 0)) - 1);
 
 // One strike: note-on now, note-off after `seconds`. `src` names the striking tube (unit and tube).
 // If the key is already sounding on the channel: a re-strike from the same source, or any strike in mono,
 // ends it first (one note per key); in poly a strike from another source stacks on it, and the key's single
 // note-off moves out to the later end.
-export function note(ch, n, vel, seconds, src = "", mono = false) {
+export function note(ch: number, n: number, vel: number, seconds: number, src = "", mono = false) {
   if (!output) return;
   const c = nib(ch), key = `${c}:${n}`, now = Date.now(), ms = Math.max(20, seconds * 1000);
   let e = offTimers.get(key);
-  if (e && (mono || e.srcs.has(src))) { clearTimeout(e.timer); send([0x80 | c, n, 0]); offTimers.delete(key); e = null; }
+  if (e && (mono || e.srcs.has(src))) { clearTimeout(e.timer); send([0x80 | c, n, 0]); offTimers.delete(key); e = undefined; }
   send([0x90 | c, n, Math.max(1, Math.min(127, vel | 0))]);
   if (e) {
     e.srcs.add(src);
     if (now + ms <= e.end) return;
     clearTimeout(e.timer);
   } else {
-    e = { srcs: new Set([src]) };
+    e = { srcs: new Set([src]), end: 0 };
     offTimers.set(key, e);
   }
   e.end = now + ms;
   e.timer = setTimeout(() => { send([0x80 | c, n, 0]); offTimers.delete(key); }, ms);
 }
 
-export const testNote = (ch, n) => note(ch, n, 100, 0.5);
+export const testNote = (ch: number, n: number) => note(ch, n, 100, 0.5);
 
-export function program(ch, bank, prog) {
+export function program(ch: number, bank: number, prog: number) {
   if (!output) return;
   const c = nib(ch);
   send([0xb0 | c, 0, bank & 127]);
@@ -145,12 +151,12 @@ export function program(ch, bank, prog) {
   send([0xc0 | c, prog & 127]);
 }
 
-export function cc(ch, num, value) {
+export function cc(ch: number, num: number, value: number) {
   send([0xb0 | nib(ch), num & 127, Math.max(0, Math.min(127, Math.round(value)))]);
 }
 
 // End the notes sounding on one channel (a unit changing channel, or being removed).
-export function endNotes(ch) {
+export function endNotes(ch: number) {
   const c = nib(ch);
   offTimers.forEach((e, key) => {
     const [kc, n] = key.split(":").map(Number);
@@ -161,7 +167,7 @@ export function endNotes(ch) {
 
 // PANIC: a note-off for every sounding note, then All Notes Off and All Sound Off on each listed channel
 // (and on any channel that still had notes sounding).
-export function allNotesOff(channels = []) {
+export function allNotesOff(channels: number[] = []) {
   const cs = new Set(channels.map(nib));
   offTimers.forEach((e, key) => {
     const [c, n] = key.split(":").map(Number);

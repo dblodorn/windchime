@@ -8,7 +8,7 @@ import { Slider as SliderPrimitive } from "radix-ui"
 // so aria-label / aria-labelledby are passed to it rather than the root.
 const THUMB_W = 9
 // Radix keeps the thumb inside the track by half its width, so a value's center sits here
-const thumbLeft = pct => `calc(${pct}% + ${(THUMB_W / 2) * (1 - pct / 50)}px)`
+const thumbLeft = (pct: number) => `calc(${pct}% + ${(THUMB_W / 2) * (1 - pct / 50)}px)`
 
 function Slider({
   className,
@@ -21,7 +21,7 @@ function Slider({
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledby,
   ...props
-}) {
+}: React.ComponentProps<typeof SliderPrimitive.Root> & { ticks?: boolean }) {
   const _values = React.useMemo(
     () =>
       Array.isArray(value)
