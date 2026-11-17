@@ -41,10 +41,10 @@
 
 - [x] 6.1 Rerun the baseline script on the final tree and diff against the golden outputs; verify every file is byte-identical
 - [x] 6.2 Run `pnpm start` and a Playwright pass (`--mute-audio`, fake MIDI, stubbed `/api/graphql`): load with no console errors or hydration warnings, strike a tube, open SETTINGS and change SCALE and SOUNDFONT by search, COPY, SHARE and reopen the link, check MIDI `0x9n`/`0x8n` and CC bytes, PANIC, and open COMPOSITIONS and load a row; verify every step passes
-- [ ] 6.3 Push the branch and open the Vercel preview; verify the deploy succeeds (including `pnpm relay` under Vercel's Node) and the preview loads
+- [x] 6.3 Push the branch and open the Vercel preview; verify the deploy succeeds (including `pnpm relay` under Vercel's Node) and the preview loads
 
 ## 7. Docs
 
 - [x] 7.1 Update CLAUDE.md: Stack (TypeScript by default, replacing "Keep it JS unless asked"), every path in Layout to `.ts`/`.tsx`, Commands (`pnpm typecheck`), Testing (engine checks run with `node` on `.ts` files; drop the module-type warning note if Node no longer prints it), and the shadcn note (`tsx: true`); verify `grep -n "\.jsx\?\b\|plain JavaScript\|Keep it JS" CLAUDE.md` finds nothing stale
 - [x] 7.2 Update AGENTS.md and README.md the same way; verify the same grep finds nothing stale in either
-- [ ] 7.3 Commit, open the PR against `main` (no changelog entry: not player-facing); verify the PR shows the renames as renames
+- [x] 7.3 Commit, open the PR against `main` (no changelog entry: not player-facing); verify the PR shows the renames as renames
