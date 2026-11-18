@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type * as React from "react";
 import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -15,42 +16,48 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SearchSelect } from "@/components/ui/search-select";
+import { SearchSelect, type SearchGroup } from "@/components/ui/search-select";
 import { Slider } from "@/components/ui/slider";
 
-const hz = f => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
+// a unit as the page holds it; soundQuiet asks for SOUND on without the confirming arpeggio (a loaded composition)
+type PageUnit = Sh.Unit & { soundQuiet?: boolean };
+type UnitPatch = Partial<PageUnit>;
+interface AudioDevice { id: string; label: string }
+
+const hz = (f: number) => (f >= 1000 ? (f / 1000).toFixed(2) + " KHZ" : Math.round(f) + " HZ");
 const SCALE_GROUPS = E.SCALES.map(([group]) => group);
 const SCALE_BY_NAME = Object.fromEntries(E.SCALE_LIST.map(s => [s.name, s]));
 // SCALE's options for SearchSelect: by group, in catalog order
 const SCALE_OPTIONS = SCALE_GROUPS.map(g => ({ label: g.toUpperCase(), items: E.SCALE_LIST.filter(s => s.group === g).map(s => ({ value: s.name, name: s.name, text: s.name })) }));
 const CHANNELS = Array.from({ length: 16 }, (_, k) => k + 1);
 const MAX_UNITS = Sh.MAX_UNITS;
+// Stored values are read back as the type they were written with; unit records are checked again (readUnit).
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("windchime." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set(k, v) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
-  remove(k) { try { localStorage.removeItem("windchime." + k); } catch (e) {} },
+  get<T>(k: string, d: T): T { try { const v = localStorage.getItem("windchime." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k: string, v: unknown) { try { localStorage.setItem("windchime." + k, JSON.stringify(v)); } catch (e) {} },
+  remove(k: string) { try { localStorage.removeItem("windchime." + k); } catch (e) {} },
 };
 
 // ROOT picks the note, OCTAVE the octave (−1 to 8, octave 4 holds middle C); the unit keeps one MIDI note
-const octaveOf = m => Math.floor(m / 12) - 1;
-const rootOf = (note, octave) => 12 * (octave + 1) + note;
-const channelText = c => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
-const portName = p => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
+const octaveOf = (m: number) => Math.floor(m / 12) - 1;
+const rootOf = (note: number, octave: number) => 12 * (octave + 1) + note;
+const channelText = (c: number) => `CHANNEL ${c}${c === 10 ? "  (GM DRUMS)" : ""}`;
+const portName = (p: { name: string; manufacturer: string }) => p.name.toUpperCase() + (p.manufacturer ? "   " + p.manufacturer.toUpperCase() : "");
 // OUTPUT "3-4" shows as "3–4"; the options are the pairs, then the single channels, up to the device's count
-const outputText = o => o.replace("-", "–");
-const outputFits = (o, n) => { const { first, count } = E.outputOf(o); return first + count <= n; };
-const outputOptions = n => [
+const outputText = (o: string) => o.replace("-", "–");
+const outputFits = (o: string, n: number) => { const { first, count } = E.outputOf(o); return first + count <= n; };
+const outputOptions = (n: number) => [
   ...Array.from({ length: n >> 1 }, (_, k) => `${2 * k + 1}-${2 * k + 2}`),
   ...Array.from({ length: n }, (_, k) => String(k + 1)),
 ];
-const deviceName = d => d.label.toUpperCase();
+const deviceName = (d: AudioDevice) => d.label.toUpperCase();
 
 const NOTE = "m-0 max-w-[60ch] text-[11px]";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
 const ROUND = "absolute size-[30px] rounded-[50%] p-0";
 
 // LABEL ....... value, with the control beneath. Controls are named by `${id}-label`, the label text alone.
-function Param({ id, label, value, children }) {
+function Param({ id, label, value, children }: { id: string; label: string; value: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div>
       <div className="flex items-baseline gap-2 tabular-nums">
@@ -63,15 +70,19 @@ function Param({ id, label, value, children }) {
   );
 }
 
-function ParamSlider({ id, value, onChange, ...range }) {
+function ParamSlider({ id, value, onChange, ...range }: { id: string; value: number; onChange: (v: number) => void }
+  & Omit<React.ComponentProps<typeof Slider>, "id" | "value" | "onChange" | "onValueChange">) {
   return <Slider id={id} value={[value]} onValueChange={([v]) => onChange(v)} aria-labelledby={`${id}-label`} {...range} />;
 }
 
 // a unit's ink style (C.inkStyle), for popups that portal out of the unit and so don't inherit its tokens
-const InkContext = createContext(undefined);
+const InkContext = createContext<C.InkStyle | undefined>(undefined);
 
-// `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render
-function ParamSelect({ id, value, display, onChange, disabled, children }) {
+// `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render.
+// onChange gets back the value string of the chosen item.
+function ParamSelect({ id, value, display, onChange, disabled, children }: {
+  id: string; value: string; display: React.ReactNode; onChange: (v: string) => void; disabled?: boolean; children: React.ReactNode;
+}) {
   const ink = useContext(InkContext);
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
@@ -83,7 +94,7 @@ function ParamSelect({ id, value, display, onChange, disabled, children }) {
 
 // MIDI Manufacturers Association "MIDI" wordmark, cropped to its ink.
 // Source: https://commons.wikimedia.org/wiki/File:MIDI_LOGO.svg (PD-textlogo; MIDI is a trademark of the MMA)
-function MidiLogo(props) {
+function MidiLogo(props: React.ComponentProps<"svg">) {
   return (
     <svg viewBox="137 96 712 266" fill="currentColor" shapeRendering="crispEdges" aria-hidden="true" focusable="false" {...props}>
       <path d="M137,96h233c19.6,0,31,16.9,31,37v229h-65V163h-38v199h-59V163h-37v199h-65V96z" />
@@ -95,11 +106,12 @@ function MidiLogo(props) {
 }
 
 function voiceGroups() {
-  const groups = [];
+  const groups: SearchGroup[] = [];
   E.fonts.forEach((f, fi) => {
     const list = f.presets.map((p, i) => ({ p, i })).sort((a, b) => a.p.bank - b.p.bank || a.p.preset - b.p.preset);
-    const opt = ({ p, i }) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${String(p.preset + 1).padStart(3, " ")}  ${p.name.toUpperCase()}` });
-    const optBank = ({ p, i }) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${p.bank}:${p.preset + 1}  ${p.name.toUpperCase()}` });
+    type Entry = (typeof list)[number];
+    const opt = ({ p, i }: Entry) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${String(p.preset + 1).padStart(3, " ")}  ${p.name.toUpperCase()}` });
+    const optBank = ({ p, i }: Entry) => ({ value: `s${fi}:${i}`, name: p.name.toUpperCase(), text: `${p.bank}:${p.preset + 1}  ${p.name.toUpperCase()}` });
     E.GM_FAMILIES.forEach((fam, k) => groups.push({ label: fam, items: list.filter(x => x.p.bank === 0 && x.p.preset >> 3 === k).map(opt) }));
     groups.push({ label: "DRUM KITS", items: list.filter(x => x.p.bank === 128).map(opt) });
     groups.push({ label: "OTHER BANKS", items: list.filter(x => x.p.bank !== 0 && x.p.bank !== 128).map(optBank) });
@@ -107,37 +119,37 @@ function voiceGroups() {
   groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, name: v.name, text: v.name })) });
   return groups.filter(g => g.items.length);
 }
-const voiceExists = v => {
+const voiceExists = (v: string) => {
   if (v[0] !== "s") return true;
   const [fi, pi] = v.slice(1).split(":").map(Number);
   return !!(E.fonts[fi] && E.fonts[fi].presets[pi]);
 };
 // null voice: the instrument's default. A furin's is the built-in FURIN (v6); a tube chime's is GM tubular bells once
 // the soundfont has loaded, the built-in tubular bells before.
-const defaultVoice = instrument => (instrument === "furin" ? "v6" : E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v0");
-const INSTRUMENT_TEXT = { chime: "TUBE CHIME", furin: "FURIN BELL" };
+const defaultVoice = (instrument: E.Instrument) => (instrument === "furin" ? "v6" : E.fonts.length ? "s0:" + E.findPreset(0, 0, 14) : "v0");
+const INSTRUMENT_TEXT: Record<E.Instrument, string> = { chime: "TUBE CHIME", furin: "FURIN BELL" };
 
 // ---------- units ----------
 // A unit is plain data; SOUND is kept for the visit only and never stored (browser audio starts only from a tap).
 const newId = () => "u" + Math.random().toString(36).slice(2, 10);
-const defaultUnit = (id = "u1") => ({ id, ...Sh.DEFAULTS });
-const TUBE_WORDS = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight" };
+const defaultUnit = (id = "u1"): PageUnit => ({ id, ...Sh.DEFAULTS });
+const TUBE_WORDS: Record<number, string> = { 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight" };
 // Stored and linked records are checked field by field (Sh.UnitSchema): anything unknown or out of range falls back
 // to the default. Ids are checked here.
-function readUnit(raw, seen) {
-  const r = raw && typeof raw === "object" ? raw : {};
+function readUnit(raw: unknown, seen: Set<string>): PageUnit {
+  const r: { id?: unknown } = raw && typeof raw === "object" ? raw : {};
   let id = typeof r.id === "string" && /^u[\w-]{1,24}$/.test(r.id) ? r.id : newId();
   if (seen.has(id)) id = newId();
   seen.add(id);
   return { id, ...Sh.UnitSchema.parse(r) };
 }
 // Checked unit records (from a link or a saved composition) as page units, with fresh ids.
-function freshUnits(records) {
-  const seen = new Set();
+function freshUnits(records: readonly unknown[]) {
+  const seen = new Set<string>();
   return records.map(r => readUnit(r, seen));
 }
 // A composition from a share link in the fragment ("#c=..."), or null when there is none.
-function linkedUnits(hash) {
+function linkedUnits(hash: string) {
   const code = Sh.codeFromHash(hash), units = code && Sh.decode(code);
   return units ? freshUnits(units) : null;
 }
@@ -152,36 +164,44 @@ const SaveButton = dynamic(() => import("./Compositions").then(m => m.SaveButton
   loading: () => <Button className="h-11 w-full" disabled>SAVE</Button>,
 });
 function loadUnits() {
-  const saved = store.get("units", null);
+  const saved = store.get<{ units?: unknown } | null>("units", null);
   if (saved && Array.isArray(saved.units) && saved.units.length) {
-    const seen = new Set();
+    const seen = new Set<string>();
     return saved.units.slice(0, MAX_UNITS).map(r => readUnit(r, seen));
   }
   // carried over from the single-unit version (those keys are removed after the first save)
-  const pos = store.get("pos", null), ch = store.get("midiCh", null);
+  const pos = store.get<{ x?: unknown; y?: unknown } | null>("pos", null), ch = store.get<unknown>("midiCh", null);
   return [readUnit({ ...defaultUnit(), x: pos && pos.x, y: pos && pos.y, channel: ch }, new Set())];
 }
-const lowestFreeChannel = units => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
+const lowestFreeChannel = (units: PageUnit[]) => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
 // the COMPOSITIONS footer's text links
 const FOOT_LINK = "text-foreground underline underline-offset-3 hover:no-underline focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3";
 
-const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }) {
+interface ChimeUnitProps {
+  unit: PageUnit; index: number; count: number; mainRef: React.RefObject<HTMLElement | null>; fontsVersion: number;
+  groups: SearchGroup[]; outChannels: number; midiLink: number; sendProg: boolean; sendCC: boolean;
+  onChange: (id: string, patch: UnitPatch) => void; onCopy: (id: string, at: { x: number; y: number }) => void;
+  onRemove: (id: string) => void; onFront: (id: string) => void; faded: boolean;
+}
+
+const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }: ChimeUnitProps) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
-  const canvasRef = useRef(null);
-  const stageRef = useRef(null);
-  const cellRefs = useRef([]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  // each pad, with the timer of its strike flash
+  const cellRefs = useRef<((HTMLButtonElement & { _t?: ReturnType<typeof setTimeout> }) | null)[]>([]);
   const dragControls = useDragControls();
   const x = useMotionValue(unit.x);
   const y = useMotionValue(unit.y);
   const [canvasPx, setCanvasPx] = useState(E.W * 2);
   const [fitted, setFitted] = useState(false);
-  const chimeRef = useRef(null);
+  const chimeRef = useRef<E.Chime | null>(null);
   if (!chimeRef.current) chimeRef.current = E.createChime();
   const chime = chimeRef.current;
-  const set = useCallback(patch => onChange(id, patch), [id, onChange]);
+  const set = useCallback((patch: UnitPatch) => onChange(id, patch), [id, onChange]);
   // the unit draws in its MIDI channel's ink: the canvas through the engine, everything else through the theme tokens
   // while another channel is focused the unit draws in a 25% tint of its ink, still opaque on white
   const inkHex = faded ? C.tint(C.inkOf(unit.channel).hex, 0.25) : C.inkOf(unit.channel).hex;
@@ -210,7 +230,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
 
   // canvas + animation; the instance is torn down with the unit
   useEffect(() => {
-    const detach = chime.attach(canvasRef.current);
+    const detach = chime.attach(canvasRef.current!);
     return () => { detach(); chime.destroy(); };
   }, [chime]);
 
@@ -274,8 +294,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   };
 
   // map through the content box, inside the canvas's 1px border
-  const onCanvasDown = e => {
-    const c = canvasRef.current, r = c.getBoundingClientRect();
+  const onCanvasDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const c = canvasRef.current!, r = c.getBoundingClientRect();
     // a press near a tube strikes it; anywhere else on the paper starts dragging the unit
     if (chime.strikeAt((e.clientX - r.left - c.clientLeft) / c.clientWidth * E.W, (e.clientY - r.top - c.clientTop) / c.clientHeight * E.H) < 0) dragControls.start(e);
   };
@@ -337,7 +357,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             <InkContext.Provider value={ink}>
             <div className="grid gap-3.5">
               <Param id={`${p}-p-inst`} label="INSTRUMENT" value={furin ? "ONE NOTE" : `${unit.tubes} TUBES`}>
-                <ParamSelect id={`${p}-p-inst`} value={unit.instrument} display={INSTRUMENT_TEXT[unit.instrument]} onChange={v => set({ instrument: v })}>
+                <ParamSelect id={`${p}-p-inst`} value={unit.instrument} display={INSTRUMENT_TEXT[unit.instrument]} onChange={v => set({ instrument: v as E.Instrument })}>
                   <SelectItem value="chime">TUBE CHIME</SelectItem>
                   <SelectItem value="furin">FURIN BELL</SelectItem>
                 </ParamSelect>
@@ -394,7 +414,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                 </ParamSelect>
               </Param>
               <Param id={`${p}-p-mode`} label="MIDI MODE" value={unit.midiMode.toUpperCase()}>
-                <ParamSelect id={`${p}-p-mode`} value={unit.midiMode} display={unit.midiMode.toUpperCase()} onChange={v => set({ midiMode: v })}>
+                <ParamSelect id={`${p}-p-mode`} value={unit.midiMode} display={unit.midiMode.toUpperCase()} onChange={v => set({ midiMode: v as PageUnit["midiMode"] })}>
                   <SelectItem value="poly">POLY</SelectItem>
                   <SelectItem value="mono">MONO</SelectItem>
                 </ParamSelect>
@@ -412,7 +432,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             const m = E.foldNote(unit.root + s);
             return (
               // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
-              <button type="button" key={i} ref={el => (cellRefs.current[i] = el)}
+              <button type="button" key={i} ref={el => { cellRefs.current[i] = el; }}
                 onPointerDown={() => chime.strikeTube(i)} onClick={e => { if (!e.detail) chime.strikeTube(i); }}>
                 <b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
               </button>
@@ -429,27 +449,27 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
 });
 
 export default function Chime() {
-  const mainRef = useRef(null);
+  const mainRef = useRef<HTMLElement>(null);
   // the server renders one default unit; the stored list replaces it on mount
-  const [units, setUnits] = useState(() => [defaultUnit()]);
+  const [units, setUnits] = useState<PageUnit[]>(() => [defaultUnit()]);
   const usedChannels = useMemo(() => new Set(units.map(u => u.channel)), [units]);
   // channel focus (the lower-left strip): a channel number or null, never stored. `focused` drops a focus whose
   // channel is gone or that the hidden strip (one channel) can no longer show, and the effect forgets it
-  const [focus, setFocus] = useState(null);
+  const [focus, setFocus] = useState<number | null>(null);
   const focused = focus != null && usedChannels.size > 1 && usedChannels.has(focus) ? focus : null;
   useEffect(() => { if (focused == null && focus != null) setFocus(null); }, [focus, focused]);
-  const focusRef = useRef(null);
+  const focusRef = useRef<number | null>(null);
   focusRef.current = focused;
   const loaded = useRef(false);
-  const ownHash = useRef(null);
+  const ownHash = useRef<string | null>(null);
   const [shared, setShared] = useState(false);
   const [fontsVersion, setFontsVersion] = useState(0);
 
   // MIDI out
   // null until mounted: the server has no navigator, so support is only known in the browser
-  const [midiSupported, setMidiSupported] = useState(null);
+  const [midiSupported, setMidiSupported] = useState<boolean | null>(null);
   const [midi, setMidi] = useState(() => M.status());
-  const [midiPorts, setMidiPorts] = useState([]);
+  const [midiPorts, setMidiPorts] = useState<ReturnType<typeof M.listOutputs>>([]);
   const [sendProg, setSendProg] = useState(true);
   const [sendCC, setSendCC] = useState(true);
   const [localSound, setLocalSound] = useState(true);
@@ -458,14 +478,14 @@ export default function Chime() {
   // AUDIO OUT: the chosen device is remembered by id and name (ids reset when site data is cleared), with the last
   // channel count seen on it, so OUTPUT has its options before audio starts. Never in links or saved compositions.
   const [audioOpen, setAudioOpen] = useState(false);
-  const [audioSupported, setAudioSupported] = useState(null); // null until mounted (SSR)
-  const [audioDevices, setAudioDevices] = useState([]);
+  const [audioSupported, setAudioSupported] = useState<boolean | null>(null); // null until mounted (SSR)
+  const [audioDevices, setAudioDevices] = useState<AudioDevice[]>([]);
   const [audioWanted, setAudioWanted] = useState({ id: "", label: "", channels: 2 });
-  const [liveChannels, setLiveChannels] = useState(null);
+  const [liveChannels, setLiveChannels] = useState<number | null>(null);
   const [audioMsg, setAudioMsg] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuOpenings, setMenuOpenings] = useState(0);
-  const onMenuOpenChange = useCallback(open => { setMenuOpen(open); if (open) setMenuOpenings(n => n + 1); }, []);
+  const onMenuOpenChange = useCallback((open: boolean) => { setMenuOpen(open); if (open) setMenuOpenings(n => n + 1); }, []);
 
   // fetch the audio library in the background; restore the units
   useEffect(() => {
@@ -506,7 +526,7 @@ export default function Chime() {
 
   // a link or a saved composition replaces every unit: the old units' MIDI notes end, the new ones start muted
   // (SOUND is never carried), and the save effect writes them over the stored units
-  const replaceComposition = useCallback(us => {
+  const replaceComposition = useCallback((us: PageUnit[]) => {
     unitsRef.current.forEach(u => M.endNotes(u.channel));
     setUnits(us);
   }, []);
@@ -514,7 +534,7 @@ export default function Chime() {
   const reset = useCallback(() => replaceComposition([defaultUnit(newId())]), [replaceComposition]);
   // A saved composition is picked with a tap, so its units start sounding: audio starts inside the click, the units
   // load muted at once, and the ones still on the page turn on when audio is running (quietly: no arpeggio each)
-  const openSaved = useCallback(records => {
+  const openSaved = useCallback((records: Sh.UnitFields[]) => {
     const started = E.startAudio();
     const us = freshUnits(records), ids = new Set(us.map(u => u.id));
     replaceComposition(us);
@@ -526,22 +546,22 @@ export default function Chime() {
   }, [replaceComposition]);
   const getUnits = useCallback(() => unitsRef.current, []);
 
-  const change = useCallback((id, patch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
+  const change = useCallback((id: string, patch: UnitPatch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
   // a copy takes the source's state, the lowest free channel, sits 24 px right and down, and goes on top
-  const copy = useCallback((id, at) => setUnits(us => {
+  const copy = useCallback((id: string, at: { x: number; y: number }) => setUnits(us => {
     const src = us.find(u => u.id === id);
     if (!src || us.length >= MAX_UNITS) return us;
     const z = Math.max(...us.map(u => u.z)) + 1;
     return [...us, { ...src, soundQuiet: false, id: newId(), channel: lowestFreeChannel(us), x: at.x + 24, y: at.y + 24, z }];
   }), []);
-  const remove = useCallback(id => {
+  const remove = useCallback((id: string) => {
     const us = unitsRef.current, u = us.find(v => v.id === id);
     if (!u || us.length <= 1) return;
     M.endNotes(u.channel); // end its sounding notes
     setUnits(cur => cur.filter(v => v.id !== id));
   }, []);
   // the pressed unit goes on top; z values are renumbered 1..n before they grow large
-  const front = useCallback(id => setUnits(us => {
+  const front = useCallback((id: string) => setUnits(us => {
     const max = Math.max(...us.map(u => u.z)), u = us.find(v => v.id === id);
     if (!u || (u.z === max && us.filter(v => v.z === max).length === 1)) return us;
     const next = us.map(v => (v.id === id ? { ...v, z: max + 1 } : v));
@@ -551,7 +571,7 @@ export default function Chime() {
   }), []);
 
   // focusing a channel brings its units above the rest, keeping their order among themselves
-  const frontChannel = useCallback(ch => setUnits(us => {
+  const frontChannel = useCallback((ch: number) => setUnits(us => {
     const max = Math.max(...us.map(u => u.z));
     const mine = us.filter(u => u.channel === ch).sort((a, b) => a.z - b.z).map(u => u.id);
     if (mine.length === us.length) return us;
@@ -562,7 +582,7 @@ export default function Chime() {
   }), []);
 
   // any press inside a unit brings it to the front; a press on a faded unit also ends channel focus
-  const pressUnit = useCallback(id => {
+  const pressUnit = useCallback((id: string) => {
     front(id);
     const f = focusRef.current, u = unitsRef.current.find(v => v.id === id);
     if (f != null && u && u.channel !== f) setFocus(null);
@@ -619,8 +639,8 @@ export default function Chime() {
   }, []);
   useEffect(() => {
     setAudioSupported(E.audioOutSupported() && !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices));
-    const w = store.get("audioOut", null);
-    if (w && typeof w.id === "string") setAudioWanted({ id: w.id, label: typeof w.label === "string" ? w.label : "", channels: Math.max(1, Math.min(Sh.MAX_OUTPUT_CHANNELS, Math.round(+w.channels) || 2)) });
+    const w = store.get<{ id?: unknown; label?: unknown; channels?: unknown } | null>("audioOut", null);
+    if (w && typeof w.id === "string") setAudioWanted({ id: w.id, label: typeof w.label === "string" ? w.label : "", channels: Math.max(1, Math.min(Sh.MAX_OUTPUT_CHANNELS, Math.round(Number(w.channels)) || 2)) });
     const offOut = E.onOutputChange(n => setLiveChannels(n));
     if (E.outputChannels()) setLiveChannels(E.outputChannels());
     if (!navigator.mediaDevices || !navigator.mediaDevices.addEventListener) return offOut;
@@ -644,7 +664,7 @@ export default function Chime() {
   }, [liveChannels, audioDisconnected]);
   useEffect(() => { if (audioSupported !== null) store.set("audioOut", { v: 1, ...audioWanted }); }, [audioWanted, audioSupported]);
   const outChannels = liveChannels || audioWanted.channels || 2;
-  const chooseDevice = v => {
+  const chooseDevice = (v: string) => {
     if (v === "default") setAudioWanted(w => ({ id: "", label: "", channels: w.id ? 2 : w.channels }));
     else {
       const d = audioDevices.find(x => x.id === v);
@@ -679,7 +699,8 @@ export default function Chime() {
       M.setWanted(store.get("midiOutName", ""));
       await M.connect();
       setMidiMsg("");
-    } catch (err) {
+    } catch (caught) {
+      const err = caught as { name?: string; message?: string } | null;
       const blocked = err && (err.name === "NotAllowedError" || err.name === "SecurityError");
       setMidiMsg(blocked
         ? "MIDI access was blocked. Open the site settings (the icon left of the address bar), allow MIDI devices for this site, then press CONNECT MIDI again. In Firefox, accept the site permission prompt."
@@ -687,13 +708,13 @@ export default function Chime() {
     }
   };
   // program change and CCs follow from each unit's linkSeq effects
-  const choosePort = id => { M.selectOutput(id); };
+  const choosePort = (id: string) => { M.selectOutput(id); };
   // one test note per unit: its first tube, on its channel
   const onTestNote = () => { units.forEach(u => M.testNote(u.channel, E.foldNote(u.root + (u.instrument === "furin" ? 0 : E.tubeNotes(SCALE_BY_NAME[u.scale].deg, 1)[0])))); };
   const onPanic = () => { M.allNotesOff(units.map(u => u.channel)); };
 
   const midiReady = midi.connected;
-  const shareTimer = useRef(0);
+  const shareTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(shareTimer.current), []);
   const onShare = async () => {
     const hash = "#c=" + Sh.encode(unitsRef.current);
@@ -709,7 +730,7 @@ export default function Chime() {
   };
   const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
-  const livePort = midi.port && midiPorts.find(p => p.id === midi.port.id);
+  const livePort = midi.port && midiPorts.find(p => p.id === midi.port!.id);
   const portText = livePort ? portName(livePort) : midi.wanted && !midi.port ? `${midi.wanted.toUpperCase()}   DISCONNECTED` : "NONE";
 
   return (

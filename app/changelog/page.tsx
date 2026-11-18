@@ -1,8 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { CHANGELOG, TYPES } from "@/lib/changelog";
 
-export const metadata = { title: "Changelog · Chime" };
+export const metadata: Metadata = { title: "Changelog · Chime" };
 
 const SMALL = "text-[10px] tracking-[.08em]";
 // Button's default look, written out: importing components/ui/button pulls radix-ui into this page's client JS

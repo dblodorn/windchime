@@ -1,10 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Compiles `graphql` tagged literals (react-relay) into imports of the artifacts `pnpm relay` writes to
   // `__generated__/` beside each file. Mirrors relay.config.json; the two must agree.
   compiler: {
-    relay: { src: ".", language: "javascript", eagerEsModules: true },
+    relay: { src: ".", language: "typescript", eagerEsModules: true },
   },
   async headers() {
     return [

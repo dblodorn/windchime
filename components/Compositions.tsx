@@ -1,25 +1,34 @@
 "use client";
 
 // The COMPOSITIONS panel's content: the public list of saved compositions (and SaveButton, for the panel's footer), through Relay and the dmbk
-// GraphQL API (lib/relay/environment.js → app/api/graphql). Loaded with next/dynamic when MENU is first pressed,
+// GraphQL API (lib/relay/environment.ts → app/api/graphql). Loaded with next/dynamic when MENU is first pressed,
 // so Relay and every request stay off the page until then. Picking a row hands its units to `onOpen`.
-import { Component, Suspense, useRef, useState } from "react";
+import { Component, Suspense, useRef, useState, type ReactNode } from "react";
 import { ConnectionHandler, RelayEnvironmentProvider, graphql, useFragment, useLazyLoadQuery, useMutation, usePaginationFragment } from "react-relay";
+import type { Environment, RecordSourceSelectorProxy } from "relay-runtime";
 import { createRelayEnvironment } from "../lib/relay/environment";
 import * as Sh from "../lib/share";
 import { Button } from "@/components/ui/button";
+import type { CompositionsQuery } from "./__generated__/CompositionsQuery.graphql";
+import type { CompositionsPaginationQuery } from "./__generated__/CompositionsPaginationQuery.graphql";
+import type { Compositions_list$key } from "./__generated__/Compositions_list.graphql";
+import type { Compositions_row$data, Compositions_row$key } from "./__generated__/Compositions_row.graphql";
+import type { CompositionsSaveMutation, CompositionsSaveMutation$data } from "./__generated__/CompositionsSaveMutation.graphql";
+
+// a saved composition's units as the API returns them; Sh.fromSaved checks them
+type SavedUnits = Compositions_row$data["units"];
 
 const PAGE = 20;
 // The API stores UTC and not the saver's zone, so a save time is shown in the viewer's own zone, labelled with it.
 const STAMP = new Intl.DateTimeFormat("en-US", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" });
-const savedAt = iso => {
+const savedAt = (iso: string) => {
   const p = Object.fromEntries(STAMP.formatToParts(new Date(iso)).map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute} ${p.timeZoneName}`;
 };
 const CONNECTION_KEY = "Compositions_dmbkSoundChimeCompositions";
 
 // one store for the page's lifetime, so reopening the panel shows the list at once (and refetches it: `opening`)
-let environment = null;
+let environment: Environment | null = null;
 const relayEnvironment = () => (environment ??= createRelayEnvironment());
 
 const ListQuery = graphql`
@@ -67,32 +76,33 @@ const SaveMutation = graphql`
   }
 `;
 
-const Line = ({ children }) => <p className="m-0 text-[11px] tracking-[.08em] uppercase">{children}</p>;
+const Line = ({ children }: { children: ReactNode }) => <p className="m-0 text-[11px] tracking-[.08em] uppercase">{children}</p>;
 
 // The saved composition goes on top of the list unless the list already shows it (a duplicate save).
-function prependSaved(store) {
+function prependSaved(store: RecordSourceSelectorProxy<CompositionsSaveMutation$data>) {
   const payload = store.getRootField("dmbkSoundSaveChimeComposition");
   const edge = payload && payload.getLinkedRecord("chimeCompositionEdge");
   const node = edge && edge.getLinkedRecord("node");
   const conn = ConnectionHandler.getConnection(store.getRoot(), CONNECTION_KEY);
-  if (!node || !conn) return;
+  if (!edge || !node || !conn) return;
   const edges = conn.getLinkedRecords("edges") || [];
   if (edges.some(e => e && e.getLinkedRecord("node")?.getDataID() === node.getDataID())) return;
-  ConnectionHandler.insertEdgeBefore(conn, ConnectionHandler.buildConnectionEdge(store, conn, edge));
+  const built = ConnectionHandler.buildConnectionEdge(store, conn, edge);
+  if (built) ConnectionHandler.insertEdgeBefore(conn, built);
 }
 
-function Save({ getUnits }) {
-  const [commit, saving] = useMutation(SaveMutation);
+function Save({ getUnits }: { getUnits: () => Sh.Unit[] }) {
+  const [commit, saving] = useMutation<CompositionsSaveMutation>(SaveMutation);
   const [saved, setSaved] = useState(false);
   const [msg, setMsg] = useState("");
-  const timer = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const onSave = () => {
     setMsg("");
     commit({
       variables: { input: { units: Sh.toSaved(getUnits()) } },
       updater: prependSaved,
       onCompleted: () => { setSaved(true); clearTimeout(timer.current); timer.current = setTimeout(() => setSaved(false), 1500); },
-      onError: err => setMsg(err && err.code === "RATE_LIMITED" ? "TOO MANY SAVES, TRY LATER" : "COULD NOT SAVE"),
+      onError: err => setMsg(err && "code" in err && err.code === "RATE_LIMITED" ? "TOO MANY SAVES, TRY LATER" : "COULD NOT SAVE"),
     });
   };
   return (
@@ -103,7 +113,7 @@ function Save({ getUnits }) {
   );
 }
 
-function Row({ row, onOpen }) {
+function Row({ row, onOpen }: { row: Compositions_row$data; onOpen: (units: SavedUnits) => void }) {
   return (
     <li>
       <button
@@ -118,14 +128,14 @@ function Row({ row, onOpen }) {
   );
 }
 
-function RowItem({ node, onOpen }) {
+function RowItem({ node, onOpen }: { node: Compositions_row$key; onOpen: (units: SavedUnits) => void }) {
   // fragment data is read here so each row only re-renders on its own changes
-  return <Row row={useFragment(RowFragment, node)} onOpen={onOpen} />;
+  return <Row row={useFragment<Compositions_row$key>(RowFragment, node)} onOpen={onOpen} />;
 }
 
-function List({ fetchKey, onOpen }) {
-  const query = useLazyLoadQuery(ListQuery, { count: PAGE }, { fetchKey, fetchPolicy: "store-and-network" });
-  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment(ListFragment, query);
+function List({ fetchKey, onOpen }: { fetchKey: string; onOpen: (units: SavedUnits) => void }) {
+  const query = useLazyLoadQuery<CompositionsQuery>(ListQuery, { count: PAGE }, { fetchKey, fetchPolicy: "store-and-network" });
+  const { data, loadNext, hasNext, isLoadingNext } = usePaginationFragment<CompositionsPaginationQuery, Compositions_list$key>(ListFragment, query);
   const [nextFailed, setNextFailed] = useState(false);
   const edges = data.dmbkSoundChimeCompositions.edges;
   const more = () => { setNextFailed(false); loadNext(PAGE, { onComplete: err => { if (err) setNextFailed(true); } }); };
@@ -143,11 +153,11 @@ function List({ fetchKey, onOpen }) {
 }
 
 // SAVE for the panel's footer: its own provider on the same store, so a save still lands on top of the list
-export function SaveButton({ getUnits }) {
+export function SaveButton({ getUnits }: { getUnits: () => Sh.Unit[] }) {
   return <RelayEnvironmentProvider environment={relayEnvironment()}><Save getUnits={getUnits} /></RelayEnvironmentProvider>;
 }
 
-class LoadFailed extends Component {
+class LoadFailed extends Component<{ children: ReactNode; onRetry: () => void }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   render() {
@@ -162,11 +172,11 @@ class LoadFailed extends Component {
 }
 
 // `opening` counts the panel's openings, so each one fetches the list again; RETRY adds a fetch of its own.
-export default function Compositions({ opening, onOpen }) {
+export default function Compositions({ opening, onOpen }: { opening: number; onOpen: (units: Sh.UnitFields[]) => void }) {
   const [retries, setRetries] = useState(0);
   const fetchKey = `${opening}:${retries}`;
   const [openFailed, setOpenFailed] = useState(false);
-  const open = saved => {
+  const open = (saved: SavedUnits) => {
     const units = Sh.fromSaved(saved);
     if (!units) { setOpenFailed(true); return; }
     setOpenFailed(false);
