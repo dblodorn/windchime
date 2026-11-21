@@ -14,6 +14,9 @@ export type ChangeType = keyof typeof TYPES;
 export interface Change { date: string; type: ChangeType; text: string }
 
 export const CHANGELOG: Change[] = [
+  { date: "2026-11-20", type: "FEATURE", text: "Casio VZ-10M as a sound, with a PATCH picker of the voices shared from the VZ-10M editor." },
+  { date: "2026-11-20", type: "ENHANCEMENT", text: "SOUNDFONT is now SOUND, with the built-in and external synths listed first." },
+  { date: "2026-11-20", type: "ENHANCEMENT", text: "Share links carry a unit's VZ-10M patch; links made before this no longer open." },
   { date: "2026-11-10", type: "FEATURE", text: "Changelog page, linked from the MENU panel." },
   { date: "2026-11-10", type: "ENHANCEMENT", text: "Units on other channels fade to a pale tint; the focused channel comes to the front." },
   { date: "2026-11-10", type: "ENHANCEMENT", text: "On phones the channel strip stands upright, level with the buttons." },

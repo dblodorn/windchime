@@ -12,10 +12,14 @@ import { Button } from "./button"
 // iOS Safari zooms the page into any field under 16px on focus, so the search is 16px there only
 // (-webkit-touch-callout is iOS-only); a maximum-scale viewport would also stop pinch zoom on Android.
 // The panel has a fixed height, so filtering (down to the empty state) never shrinks, moves or flips it.
+// Remote mode (PATCH): `filter={false}` shows `groups` as given, flat, because the caller already searched
+// (`onQueryChange` hears every search, and "" on each opening); `footer` ends the list with MORE or RETRY (reached
+// with the arrow keys, Enter runs it without closing) or LOADING….
 
 const TOUCH = "(any-hover: none) and (any-pointer: coarse)" // the `touch` variant in globals.css
 export interface SearchOption { value: string; name: string; text: string }
 export interface SearchGroup { label: string; items: SearchOption[] }
+export type SearchFooter = { kind: "more" | "error"; onAction: () => void } | { kind: "loading" }
 // rank()'s result: a null label is the flat list of matches, shown without a heading
 type RankedGroup = { label: string | null; items: SearchOption[] }
 
@@ -41,9 +45,10 @@ export function rank(groups: SearchGroup[], query: string, byGroup = false): Ran
   return out
 }
 
-function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled, contentStyle }: {
+function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled, contentStyle, filter = true, onQueryChange, maxLength, footer }: {
   id: string; value: string; display: React.ReactNode; onChange: (value: string) => void; groups: SearchGroup[];
   byGroup?: boolean; disabled?: boolean; contentStyle?: React.CSSProperties;
+  filter?: boolean; onQueryChange?: (query: string) => void; maxLength?: number; footer?: SearchFooter;
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
@@ -51,8 +56,12 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
   const inputRef = React.useRef<HTMLInputElement>(null)
   const listRef = React.useRef<HTMLDivElement>(null)
 
-  const shown = React.useMemo(() => rank(groups, query, byGroup), [groups, query, byGroup])
+  const shown = React.useMemo<RankedGroup[]>(
+    () => (filter ? rank(groups, query, byGroup) : [{ label: null, items: groups.flatMap(g => g.items) }]), [groups, query, byGroup, filter])
   const flat = shown.flatMap(g => g.items)
+  // MORE / RETRY is one more stop for the highlight, after the options
+  const action = footer && footer.kind !== "loading" ? footer : null
+  const stops = flat.length + (action ? 1 : 0)
   const listId = `${id}-list`
   const optId = (i: number) => `${id}-o-${i}`
   const current = (list: SearchOption[]) => Math.max(0, list.findIndex(o => o.value === value))
@@ -60,11 +69,13 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
   // every opening starts from `q` (empty, or the key typed on the closed field)
   const openWith = (q: string) => {
     setQuery(q)
+    onQueryChange?.(q)
     setHi(q ? 0 : current(groups.flatMap(g => g.items)))
     setOpen(true)
   }
   const search = (q: string) => {
     setQuery(q)
+    onQueryChange?.(q)
     setHi(q.trim() ? 0 : current(groups.flatMap(g => g.items)))
   }
   const choose = (o: SearchOption | undefined) => {
@@ -83,11 +94,13 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
     else if (e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openWith(e.key) }
   }
   const onListKey = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") { e.preventDefault(); setHi(i => Math.min(i + 1, flat.length - 1)) }
+    if (e.key === "ArrowDown") { e.preventDefault(); setHi(i => Math.min(i + 1, stops - 1)) }
     else if (e.key === "ArrowUp") { e.preventDefault(); setHi(i => Math.max(i - 1, 0)) }
-    else if (e.key === "Enter") { e.preventDefault(); choose(flat[hi]) }
+    else if (e.key === "Enter") { e.preventDefault(); if (action && hi === flat.length) action.onAction(); else choose(flat[hi]) }
   }
-  const active = flat[hi] ? optId(hi) : undefined
+  // remote results can shrink under the highlight
+  React.useEffect(() => { if (hi > 0 && hi >= stops) setHi(Math.max(0, stops - 1)) }, [hi, stops])
+  const active = hi < stops ? optId(hi) : undefined
 
   let n = -1 // running index into `flat` across groups
   const option = (o: SearchOption) => {
@@ -123,12 +136,12 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
             <span id={`${id}-search-label`} className="text-[11px] tracking-[.08em]">SEARCH</span>
             <input ref={inputRef} type="text" role="searchbox" aria-labelledby={`${id}-search-label`} aria-controls={listId} aria-activedescendant={active}
               autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="done"
-              value={query} onChange={e => search(e.target.value)} onKeyDown={onListKey}
+              value={query} maxLength={maxLength} onChange={e => search(e.target.value)} onKeyDown={onListKey}
               className="min-w-0 flex-1 border-0 bg-background p-0 text-foreground uppercase [@supports(-webkit-touch-callout:none)]:text-[16px] outline-none focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-dashed focus-visible:outline-foreground" />
           </div>
           <div ref={listRef} id={listId} role="listbox" aria-labelledby={`${id}-label`} tabIndex={-1} aria-activedescendant={active} onKeyDown={onListKey}
             className="min-h-0 overflow-x-hidden overflow-y-auto outline-none">
-            {flat.length === 0 && (
+            {flat.length === 0 && footer?.kind !== "loading" && footer?.kind !== "error" && (
               <div className="flex h-full flex-col items-center justify-center gap-3 px-2 py-4 text-center">
                 <p className="m-0 break-all">NO MATCH FOR {query.trim().toUpperCase()}</p>
                 <Button onMouseDown={e => e.preventDefault()} onClick={() => { search(""); inputRef.current?.focus() }}>CLEAR SEARCH</Button>
@@ -140,6 +153,15 @@ function SearchSelect({ id, value, display, onChange, groups, byGroup, disabled,
                 {g.items.map(option)}
               </div>
             ))}
+            {footer?.kind === "loading" && <p className="m-0 px-2 py-1 text-[11px] tracking-[.08em]">LOADING…</p>}
+            {footer?.kind === "error" && <p className="m-0 px-2 pt-1 text-[11px] tracking-[.08em]">COULD NOT LOAD</p>}
+            {action && (
+              <div id={optId(flat.length)} role="option" aria-selected={false} data-highlighted={hi === flat.length ? "" : undefined}
+                className="relative flex w-full cursor-default items-center py-0.5 pl-2 tracking-[.08em] underline select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                onPointerMove={() => hi !== flat.length && setHi(flat.length)} onMouseDown={e => e.preventDefault()} onClick={action.onAction}>
+                {action.kind === "more" ? "MORE" : "RETRY"}
+              </div>
+            )}
           </div>
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>

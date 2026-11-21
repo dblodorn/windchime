@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@dblodorn/casio-vz-engine':
+        specifier: 0.1.0
+        version: 0.1.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -223,6 +226,10 @@ packages:
   '@babel/types@7.29.11':
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
+
+  '@dblodorn/casio-vz-engine@0.1.0':
+    resolution: {integrity: sha512-QB+ZK9UY/39z8f7vEmqxsa2CY/aeMKat2mTpnsHOhRzAuCaDbZpg5l3wWGuQonEDahEGbNz/mFjZqkCCrsNETQ==, tarball: https://npm.pkg.github.com/download/@dblodorn/casio-vz-engine/0.1.0/7ad75dbfd73d6cbc4836c0b0a299aba204726f75}
+    engines: {node: '>=22.18'}
 
   '@dotenvx/dotenvx@1.75.1':
     resolution: {integrity: sha512-/BITOC9dmS/edY2zQwZNicQ059O6RKabtQfyEafV0nGtfYRNHYy1DIPiYVcov40+tob9hfmBnbR963dS+EQ1DQ==}
@@ -2642,6 +2649,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.11
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@dblodorn/casio-vz-engine@0.1.0': {}
 
   '@dotenvx/dotenvx@1.75.1':
     dependencies:

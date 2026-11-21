@@ -2,6 +2,7 @@
 // Browser-only. Make a chime with createChime() and call its attach() inside an effect; every attached
 // chime is stepped and drawn by one shared loop and plays through one shared output stage.
 import type { Filter, FMSynth, PolySynth } from "tone";
+import { synthOf, type ExternalSynth, type SynthLike } from "./synths.ts";
 
 export const W = 200, H = 200;
 // scratch raster: each chime draws into it in turn, then presents it to its own canvas
@@ -368,14 +369,20 @@ export const GM_FAMILIES = ["PIANO", "CHROMATIC PERCUSSION", "ORGAN", "GUITAR", 
   "SYNTH LEAD", "SYNTH PAD", "SYNTH EFFECTS", "ETHNIC", "PERCUSSIVE", "SOUND EFFECTS"];
 export const fonts: Font[] = [];
 
-// value: "v<index>" for a built-in voice, "s<font>:<preset>" for a soundfont preset; null when the preset doesn't exist
-function voiceFor(value: string | null | undefined): { voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null } | null {
+// value: "v<index>" for a built-in voice, "s<font>:<preset>" for a soundfont preset, "x:<synth>" for an external
+// synth (lib/synths.ts); null when the preset or synth doesn't exist
+type VoiceChoice = { voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null; ext: ExternalSynth | null };
+function voiceFor(value: string | null | undefined): VoiceChoice | null {
+  if (value && value.startsWith("x:")) {
+    const ext = synthOf(value);
+    return ext ? { voice: null, sfPreset: null, sfRegions: null, ext } : null;
+  }
   if (value && value[0] === "s") {
     const [fi, pi] = value.slice(1).split(":").map(Number), f = fonts[fi];
     if (!f || !f.presets[pi]) return null;
-    return { voice: null, sfPreset: f.presets[pi], sfRegions: resolvePreset(f, pi) };
+    return { voice: null, sfPreset: f.presets[pi], sfRegions: resolvePreset(f, pi), ext: null };
   }
-  return { voice: VOICES[+String(value || "v0").slice(1)] || VOICES[0], sfPreset: null, sfRegions: null };
+  return { voice: VOICES[+String(value || "v0").slice(1)] || VOICES[0], sfPreset: null, sfRegions: null, ext: null };
 }
 export function findPreset(fi: number, bank: number, prog: number) { return fonts[fi] ? fonts[fi].presets.findIndex(p => p.bank === bank && p.preset === prog) : -1; }
 // a whole .sf2 in memory (every sample present); loadFont below fetches the bundled one in pieces
@@ -551,6 +558,7 @@ function ring(ch: ChimeState, i: number, vel: number) {
   const P = ch.P;
   if (muted || !ch.sound || !(P.volume > 0) || !ch.graph || actx!.state !== "running") return;
   const n = noteAt(P, i), t = actx!.currentTime + 0.005;
+  if (ch.ext) return playExternal(ch, n, vel, t);
   if (ch.sfRegions) return playSF(ch, n, vel, t);
   playVoice(ch, ch.voice!, n, vel, t);
 }
@@ -585,6 +593,50 @@ function playVoice(ch: ChimeState, voice: Voice, n: number, vel: number, t: numb
     });
   });
 }
+// ---------- external synths ----------
+// A chime on an external synth (lib/synths.ts) gets its own instance of the synth's engine, an AudioWorklet that
+// feeds the chime's input like any other voice (VOLUME, filter and OUTPUT apply). The engine package loads on the
+// first SOUND on with it; until the instance is ready, strikes play the built-in tubular bells.
+function ensureSynth(ch: ChimeState) {
+  const ext = ch.ext;
+  if (!ext || !ch.graph || ch.xsynth || ch.xloading) return;
+  const ctx = actx!;
+  ch.xloading = ext.engine()
+    .then(m => m.createSynth(ctx))
+    .then(synth => {
+      // the chime moved on (another voice, destroyed) while this was loading
+      if (ch.ext !== ext || !ch.graph) { synth.dispose(); return; }
+      synth.output.connect(ch.graph.input);
+      ch.xsynth = synth;
+      loadPatch(ch);
+    })
+    .catch(() => {}) // forgotten: the next SOUND on or voice change tries again
+    .finally(() => { ch.xloading = null; });
+}
+// the chosen patch's bytes, or the synth's INIT while they haven't arrived (or don't load)
+function loadPatch(ch: ChimeState) {
+  if (!ch.xsynth || !ch.ext) return;
+  try { ch.xsynth.loadVoice(ch.patchBytes ?? ch.ext.init()); } catch (e) { ch.xsynth.loadVoice(ch.ext.init()); }
+}
+function endExternalNotes(ch: ChimeState) {
+  ch.xoff.forEach(t => clearTimeout(t));
+  ch.xoff.clear();
+  if (ch.xsynth) ch.xsynth.allNotesOff();
+}
+function disposeSynth(ch: ChimeState) {
+  endExternalNotes(ch);
+  if (ch.xsynth) { ch.xsynth.dispose(); ch.xsynth = null; }
+}
+// one note of the patch for DECAY seconds; a strike on a sounding note restarts it
+function playExternal(ch: ChimeState, n: number, vel: number, t: number) {
+  const synth = ch.xsynth;
+  if (!synth) return playVoice(ch, VOICES[0], n, vel, t);
+  clearTimeout(ch.xoff.get(n));
+  synth.noteOff(n);
+  synth.noteOn(n, Math.max(1, Math.min(127, Math.round(vel))));
+  ch.xoff.set(n, setTimeout(() => { ch.xoff.delete(n); synth.noteOff(n); }, ch.P.decay * 1000));
+}
+
 // ---------- SF2 sampler ----------
 interface Chunk { o: number; size: number }
 // a generator: its operator and its amount read as two bytes (a range), signed and unsigned
@@ -791,8 +843,10 @@ export interface Take { kind: "LIVE" | "RENDER"; hits: Hit[]; dur: number; decay
 // a chime's own state; createChime adds its methods
 interface ChimeState {
   P: Params; sim: Sim; streaks: Streak[]; acc: number;
-  // voice is null while a soundfont preset plays (sfPreset and sfRegions are set instead)
-  voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null;
+  // voice is null while a soundfont preset plays (sfPreset and sfRegions are set instead) or an external synth
+  // does (ext, with its engine instance xsynth once loaded, the chosen patch's bytes and one note-off per note)
+  voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null; ext: ExternalSynth | null;
+  xsynth: SynthLike | null; xloading: Promise<void> | null; patchBytes: Uint8Array | null; xoff: Map<number, ReturnType<typeof setTimeout>>;
   sound: boolean; graph: Graph | null; ctx2d: CanvasRenderingContext2D | null; img: ImageData | null;
   rec: Recording | null; ink: Rgb; hit: HitFn;
 }
@@ -814,7 +868,7 @@ function tick(now: number) {
 export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?: number } = {}) {
   const ch: ChimeState = {
     P: defaultParams(), sim: makeSim(seed), streaks: makeStreaks(), acc: 0,
-    voice: VOICES[0], sfPreset: null, sfRegions: null,
+    voice: VOICES[0], sfPreset: null, sfRegions: null, ext: null, xsynth: null, xloading: null, patchBytes: null, xoff: new Map(),
     sound: false, graph: null, ctx2d: null, img: null, rec: null, ink: [0, 0, 0], hit: () => {},
   };
   const listeners = new Set<(i: number, vel: number) => void>();
@@ -825,9 +879,12 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
     if (ch.rec) ch.rec.hits.push({ t: t - ch.rec.t0, n: noteOf(i), v: vel });
     listeners.forEach(fn => fn(i, vel));
   };
-  const midiProgram = () => ch.sfPreset
+  // null for an external synth: it has no General MIDI program, so no program change is sent for it
+  const midiProgram = () => ch.ext ? null : ch.sfPreset
     ? { prog: ch.sfPreset.preset & 127, bank: ch.sfPreset.bank > 127 ? 128 : ch.sfPreset.bank, name: ch.sfPreset.name }
     : { prog: ch.voice!.gm, bank: 0, name: ch.voice!.name };
+  // a take's header still needs a program: an external synth's take is written as program 1 under its name
+  const takeProgram = () => midiProgram() ?? { prog: 0, bank: 0, name: ch.ext!.name };
   const strikeTube = (i: number) => {
     if (furin()) {
       if (i !== 0) return;
@@ -851,14 +908,21 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
   };
   return Object.assign(ch, {
     noteOf, midiProgram, strikeTube, tubeSegments,
-    // value: "v<index>" or "s<font>:<preset>"; an unknown preset leaves the voice as it was and returns false
-    // a soundfont preset picked while the sound is on fetches its samples now (strikes play the built-in voice until then)
+    // value: "v<index>", "s<font>:<preset>" or "x:<synth>"; an unknown preset or synth leaves the voice as it was
+    // and returns false. A soundfont preset picked while the sound is on fetches its samples now, an external synth
+    // starts its engine (strikes play the built-in voice until then).
     chooseVoice(value: string | null) {
       const v = voiceFor(value);
       if (!v) return false;
+      if (v.ext !== ch.ext) { disposeSynth(ch); ch.patchBytes = null; }
       Object.assign(ch, v);
-      if (ch.sound) loadSamples(ch.sfRegions);
+      if (ch.sound) { loadSamples(ch.sfRegions); ensureSynth(ch); }
       return true;
+    },
+    // an external synth's patch bytes (null: its INIT); notes already sounding keep the patch they started with
+    setPatch(bytes: Uint8Array | null) {
+      ch.patchBytes = bytes;
+      loadPatch(ch);
     },
     setParams(p: Partial<Params>) {
       const P = ch.P;
@@ -895,6 +959,7 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
         sounding.add(ch);
         loadSamples(ch.sfRegions);
         if (master && !ch.graph) buildGraph(ch);
+        ensureSynth(ch);
         level(ch);
         if (quiet) return;
         if (furin()) { ring(ch, 0, 90); return; }
@@ -903,6 +968,7 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
       } else {
         sounding.delete(ch);
         level(ch);
+        endExternalNotes(ch);
         if (!sounding.size && unlockEl) unlockEl.pause();
       }
     },
@@ -942,7 +1008,7 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
     startRec() { ch.rec = { t0: ch.sim.t, hits: [], cc: [{ t: 0, x: ch.P.cutX, q: ch.P.q }] }; },
     stopRec(): Take | null {
       if (!ch.rec) return null;
-      const r = ch.rec, take: Take = { kind: "LIVE", hits: r.hits, dur: ch.sim.t - r.t0, decay: ch.P.decay, cc: r.cc, ...midiProgram() };
+      const r = ch.rec, take: Take = { kind: "LIVE", hits: r.hits, dur: ch.sim.t - r.t0, decay: ch.P.decay, cc: r.cc, ...takeProgram() };
       ch.rec = null;
       return take;
     },
@@ -951,13 +1017,15 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
       for (let k = 0; k < 2 * 240; k++) step(off, ch.P, DT, () => {});   // let the clapper settle into the wind first
       const t0 = off.t;
       for (let k = 0; k < DUR * 240; k++) step(off, ch.P, DT, (i, v, t) => hits.push({ t: t - t0, n: noteOf(i), v }));
-      return { kind: "RENDER", hits, dur: DUR, decay: ch.P.decay, cc: [{ t: 0, x: ch.P.cutX, q: ch.P.q }], ...midiProgram() };
+      return { kind: "RENDER", hits, dur: DUR, decay: ch.P.decay, cc: [{ t: 0, x: ch.P.cutX, q: ch.P.q }], ...takeProgram() };
     },
     destroy() {
       detach();
       listeners.clear();
       ch.sound = false;
       if (sounding.delete(ch) && !sounding.size && unlockEl) unlockEl.pause();
+      disposeSynth(ch);
+      ch.ext = null;
       if (ch.graph) {
         const g = ch.graph;
         g.input.disconnect(); g.filter.dispose(); if (g.fm) g.fm.dispose();

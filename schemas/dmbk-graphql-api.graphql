@@ -181,13 +181,20 @@ type ChimeUnit {
   """Whether the tube-notes drawer is shown."""
   notes: Boolean!
 
+  """
+  External-synth units only: the patch's id in that synth's library (24
+  lowercase hex, the `_id` of e.g. a VzVoice), null for the synth's INIT patch.
+  Null on every other unit.
+  """
+  patch: String
+
   """Stacking order among the units, 0 at the back, 0–15."""
   rank: Int!
 
   """RESONANCE × 10, 5–180."""
   resonance: Int!
 
-  """Root MIDI note, 48–84."""
+  """Root MIDI note, 0–119."""
   root: Int!
 
   """A scale name from windchime's catalog."""
@@ -197,7 +204,8 @@ type ChimeUnit {
   tubes: Int!
 
   """
-  A voice id from windchime's catalog (`v<i>` built-in, `s0:<p>` GM preset); null for the default.
+  A voice id from windchime's catalog (`v<i>` built-in, `s0:<p>` GM preset,
+  `x:<synth>` external synth); null for the default.
   """
   voice: String
 
@@ -215,7 +223,7 @@ type ChimeUnit {
 }
 
 """
-One chime to save. Every field is required except `voice` and `instrument`.
+One chime to save. Every field is required except `voice`, `instrument` and `patch`.
 """
 input ChimeUnitInput {
   """MIDI channel, 1–16."""
@@ -232,13 +240,20 @@ input ChimeUnitInput {
   midiMode: ChimeMidiMode!
   notes: Boolean!
 
+  """
+  External-synth units only: the patch's id in that synth's library (24
+  lowercase hex, the `_id` of e.g. a VzVoice), null for the synth's INIT patch.
+  Omitted means null. Refused on any other unit.
+  """
+  patch: String
+
   """Stacking order among the units, 0 at the back, 0–15."""
   rank: Int!
 
   """RESONANCE × 10, 5–180."""
   resonance: Int!
 
-  """Root MIDI note, 48–84."""
+  """Root MIDI note, 0–119."""
   root: Int!
 
   """A scale name from windchime's catalog."""
@@ -248,7 +263,8 @@ input ChimeUnitInput {
   tubes: Int!
 
   """
-  A voice id from windchime's catalog (`v<i>` built-in, `s0:<p>` GM preset); null for the default. Omitted means null.
+  A voice id from windchime's catalog (`v<i>` built-in, `s0:<p>` GM preset,
+  `x:<synth>` external synth); null for the default. Omitted means null.
   """
   voice: String
 
@@ -358,6 +374,21 @@ type DmbkSoundChimeCompositionEdge {
   node: ChimeComposition!
 }
 
+input DmbkSoundDeleteVzVoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the voice."""
+  creatorKey: String!
+  id: ID!
+}
+
+type DmbkSoundDeleteVzVoicePayload {
+  clientMutationId: ID
+
+  """The deleted voice, for `@deleteRecord`."""
+  deletedVzVoiceId: ID!
+}
+
 input DmbkSoundSaveChimeCompositionInput {
   clientMutationId: ID
 
@@ -372,6 +403,27 @@ type DmbkSoundSaveChimeCompositionPayload {
   created: Boolean!
 }
 
+input DmbkSoundSaveVzVoiceInput {
+  clientMutationId: ID
+
+  """
+  The saving browser's device key (32 random bytes, base64url). Only its hash is stored.
+  """
+  creatorKey: String!
+
+  """
+  The 336 decoded voice bytes as base64 (448 characters). The name is read from them.
+  """
+  data: String!
+}
+
+type DmbkSoundSaveVzVoicePayload {
+  clientMutationId: ID
+  created: Boolean!
+  vzVoice: VzVoice!
+  vzVoiceEdge: DmbkSoundVzVoiceEdge!
+}
+
 input DmbkSoundSetChimeCompositionHiddenInput {
   clientMutationId: ID
   hidden: Boolean!
@@ -381,6 +433,41 @@ input DmbkSoundSetChimeCompositionHiddenInput {
 type DmbkSoundSetChimeCompositionHiddenPayload {
   chimeComposition: ChimeComposition!
   clientMutationId: ID
+}
+
+input DmbkSoundSetVzVoiceHiddenInput {
+  clientMutationId: ID
+  hidden: Boolean!
+  id: ID!
+}
+
+type DmbkSoundSetVzVoiceHiddenPayload {
+  clientMutationId: ID
+  vzVoice: VzVoice!
+}
+
+input DmbkSoundUpdateVzVoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the voice."""
+  creatorKey: String!
+
+  """
+  The 336 decoded voice bytes as base64 (448 characters). The name is read from them.
+  """
+  data: String!
+  id: ID!
+}
+
+type DmbkSoundUpdateVzVoicePayload {
+  clientMutationId: ID
+  vzVoice: VzVoice!
+}
+
+"""A voice with its cursor in the `dmbkSoundVzVoices` ordering."""
+type DmbkSoundVzVoiceEdge {
+  cursor: String!
+  node: VzVoice!
 }
 
 """An image generated with a LoRA."""
@@ -621,12 +708,31 @@ type Mutation {
   dmbkPhotosUpdatePhoto(input: DmbkPhotosUpdatePhotoInput!): DmbkPhotosUpdatePhotoPayload!
 
   """
+  Delete a voice for good. Only the device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundDeleteVzVoice(input: DmbkSoundDeleteVzVoiceInput!): DmbkSoundDeleteVzVoicePayload!
+
+  """
   Save a composition anonymously, with a title the API generates. Identical
   units return the stored composition with `created: false`. Rate-limited per
   visitor (`X-End-User-IP`) and per client.
   """
   dmbkSoundSaveChimeComposition(input: DmbkSoundSaveChimeCompositionInput!): DmbkSoundSaveChimeCompositionPayload!
+
+  """
+  Save a voice anonymously under a device key. The same key saving identical
+  bytes again returns the stored voice with `created: false`. Obscene names are
+  refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
+  """
+  dmbkSoundSaveVzVoice(input: DmbkSoundSaveVzVoiceInput!): DmbkSoundSaveVzVoicePayload!
   dmbkSoundSetChimeCompositionHidden(input: DmbkSoundSetChimeCompositionHiddenInput!): DmbkSoundSetChimeCompositionHiddenPayload!
+  dmbkSoundSetVzVoiceHidden(input: DmbkSoundSetVzVoiceHiddenInput!): DmbkSoundSetVzVoiceHiddenPayload!
+
+  """
+  Replace a voice's bytes (renaming it too, since the name is in them). Only the
+  device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundUpdateVzVoice(input: DmbkSoundUpdateVzVoiceInput!): DmbkSoundUpdateVzVoicePayload!
 
   """Mark a training completed. Already completed: changes nothing."""
   loraTrainerCompleteTraining(input: LoraTrainerCompleteTrainingInput!): LoraTrainerCompleteTrainingPayload!
@@ -734,6 +840,23 @@ type Query {
   dmbkSoundPlaylists: SoundSnapshot
 
   """
+  Saved VZ voices that are not hidden, newest first. `creatorKey` narrows them
+  to that device key's voices; `search` to names containing the text.
+  """
+  dmbkSoundVzVoices(
+    after: String
+    before: String
+
+    """A device key: only the voices it saved."""
+    creatorKey: String
+    first: Int
+    last: Int
+
+    """Names containing this text, ignoring case; at most 12 characters."""
+    search: String
+  ): QueryDmbkSoundVzVoicesConnection!
+
+  """
   Up to `count` (1–20) distinct images in random order, from visible generated images and visible, completed trainings.
   """
   loraTrainerSlideshowImages(count: Int! = 10): [LoraTrainerSlideshowImage!]!
@@ -765,6 +888,16 @@ type QueryDmbkSoundChimeCompositionsConnection {
 type QueryDmbkSoundChimeCompositionsConnectionEdge {
   cursor: String!
   node: ChimeComposition!
+}
+
+type QueryDmbkSoundVzVoicesConnection {
+  edges: [QueryDmbkSoundVzVoicesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryDmbkSoundVzVoicesConnectionEdge {
+  cursor: String!
+  node: VzVoice!
 }
 
 type QueryLoraTrainerTrainingsConnection {
@@ -834,6 +967,18 @@ type SoundUser {
   username: String!
 }
 
+"""
+A patch in an external synth's library: its display name and its bytes. VzVoice is one.
+"""
+interface SynthPatch {
+  """The patch's bytes as base64, in the synth's own format."""
+  data: String!
+  id: ID!
+
+  """The patch's display name; may be empty."""
+  name: String!
+}
+
 """The signed-in account."""
 type Viewer {
   """The Are.na user saved with `arenaSetUser`, or null."""
@@ -842,6 +987,9 @@ type Viewer {
 
   """The account's user id; LoRA records name it as their owner."""
   id: String!
+
+  """Profile picture URL from Google, as stored at sign-up, or null."""
+  image: String
 
   """May curate the photo library."""
   isAdmin: Boolean!
@@ -884,5 +1032,33 @@ enum Visibility {
   ANY
   HIDDEN
   VISIBLE
+}
+
+"""
+A VZ-1 / VZ-10M voice saved anonymously. Hidden ones are visible to admins only.
+"""
+type VzVoice implements Node & SynthPatch {
+  """ISO-8601. The listing is ordered by this."""
+  createdAt: String!
+
+  """The 336 decoded voice bytes as base64 (448 characters)."""
+  data: String!
+
+  """Admin only."""
+  hidden: Boolean
+  id: ID!
+
+  """
+  The voice's name as the VZ shows it, read from the bytes; may be empty.
+  """
+  name: String!
+
+  """ISO-8601. Equals createdAt until the voice is updated."""
+  updatedAt: String!
+
+  """
+  Whether this device key saved the voice. The key is never stored, only compared by hash.
+  """
+  yours(creatorKey: String!): Boolean!
 }
 

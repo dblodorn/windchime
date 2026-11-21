@@ -10,6 +10,7 @@ import * as E from "../lib/engine";
 import * as C from "../lib/colors";
 import * as M from "../lib/midiout";
 import * as Sh from "../lib/share";
+import { EXTERNAL_SYNTHS, synthOf } from "../lib/synths";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -76,6 +77,13 @@ function ParamSlider({ id, value, onChange, ...range }: { id: string; value: num
 }
 
 // a unit's ink style (C.inkStyle), for popups that portal out of the unit and so don't inherit its tokens
+// PATCH, an external synth's patch list (components/PatchSelect.tsx): its own chunk, with the Relay query, loaded when
+// a unit on an external synth shows its settings. Until then a field that looks like it, disabled.
+const PatchSelect = dynamic(() => import("./PatchSelect"), {
+  ssr: false,
+  loading: () => <div className="mt-1 border border-foreground px-1 py-0.5 opacity-40">…</div>,
+});
+
 const InkContext = createContext<C.InkStyle | undefined>(undefined);
 
 // `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render.
@@ -105,8 +113,11 @@ function MidiLogo(props: React.ComponentProps<"svg">) {
   );
 }
 
+// SOUND's groups: the built-in synths, the external synths (lib/synths.ts), then the soundfont's GM groups
 function voiceGroups() {
   const groups: SearchGroup[] = [];
+  groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, name: v.name, text: v.name })) });
+  groups.push({ label: "EXTERNAL SYNTHS", items: EXTERNAL_SYNTHS.map(s => ({ value: `x:${s.id}`, name: s.name, text: s.name })) });
   E.fonts.forEach((f, fi) => {
     const list = f.presets.map((p, i) => ({ p, i })).sort((a, b) => a.p.bank - b.p.bank || a.p.preset - b.p.preset);
     type Entry = (typeof list)[number];
@@ -116,7 +127,6 @@ function voiceGroups() {
     groups.push({ label: "DRUM KITS", items: list.filter(x => x.p.bank === 128).map(opt) });
     groups.push({ label: "OTHER BANKS", items: list.filter(x => x.p.bank !== 0 && x.p.bank !== 128).map(optBank) });
   });
-  groups.push({ label: "BUILT-IN SYNTH", items: E.VOICES.map((v, i) => ({ value: `v${i}`, name: v.name, text: v.name })) });
   return groups.filter(g => g.items.length);
 }
 const voiceExists = (v: string) => {
@@ -212,6 +222,11 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const cutoff = E.cutoffHz(unit.cutX);
   const furin = unit.instrument === "furin";
   const voice = unit.voice || defaultVoice(unit.instrument);
+  const ext = synthOf(voice); // an external synth, or undefined
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // a shared patch's name once known: fetched, or passed up when it was picked from the list
+  const [patchName, setPatchName] = useState<{ id: string; name: string } | null>(null);
+  const patchText = !ext ? "" : unit.patch === null ? ext.initName : patchName?.id === unit.patch ? patchName.name : "LOADING…";
   const channelRef = useRef(unit.channel);
   const monoRef = useRef(false);
   monoRef.current = unit.midiMode === "mono";
@@ -227,6 +242,27 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const prog = useMemo(() => { chime.chooseVoice(voice); return chime.midiProgram(); }, [chime, voice, fontsVersion]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { chime.setSound(unit.sound, { quiet: unit.soundQuiet }); }, [chime, unit.sound]);
+  // An external synth's shared patch: fetched (with its name) once the unit needs it, to sound or to show its name.
+  // It plays INIT until the bytes arrive; a patch the library no longer has becomes INIT; a failed request keeps the
+  // patch and is tried again on the next SOUND on (lib/patches.ts forgets failures).
+  const needPatch = unit.sound || unit.notes || settingsOpen;
+  useEffect(() => {
+    if (!ext) return;
+    chime.setPatch(null);
+    const patch = unit.patch;
+    if (patch === null || !needPatch) return;
+    let live = true;
+    import("../lib/patches")
+      .then(P => P.getPatch(ext, patch))
+      .then(got => {
+        if (!live) return;
+        if (!got) { set({ patch: null }); return; }
+        chime.setPatch(got.bytes);
+        setPatchName({ id: patch, name: got.name.toUpperCase() || "UNTITLED" });
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [chime, ext, unit.patch, needPatch, unit.sound, set]);
 
   // canvas + animation; the instance is torn down with the unit
   useEffect(() => {
@@ -250,7 +286,8 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   useEffect(() => {
     if (channelRef.current !== unit.channel) { M.endNotes(channelRef.current); channelRef.current = unit.channel; }
   }, [unit.channel]);
-  useEffect(() => { if (sendProg && M.currentOutput()) M.program(unit.channel, prog.bank, prog.prog); }, [prog, sendProg, midiLink, unit.channel]);
+  // an external synth has no GM program (prog is null), so nothing is sent for it
+  useEffect(() => { if (prog && sendProg && M.currentOutput()) M.program(unit.channel, prog.bank, prog.prog); }, [prog, sendProg, midiLink, unit.channel]);
   useEffect(() => {
     if (sendCC && M.currentOutput()) { M.cc(unit.channel, 74, unit.cutX * 127); M.cc(unit.channel, 71, (unit.q - 0.5) / 17.5 * 127); }
   }, [unit.cutX, unit.q, sendCC, midiLink, unit.channel]);
@@ -303,7 +340,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const p = id; // per-unit prefix for element ids
   const voiceItem = groups.flatMap(g => g.items).find(it => it.value === voice) || { name: "", text: "" };
   const voiceText = voiceItem.text;
-  const voiceTag = voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
+  const voiceTag = !prog ? "EXTERNAL" : voice[0] === "s" ? (prog.bank === 128 ? "GM DRUMS" : "GM " + (prog.prog + 1)) : "SYNTH";
   const outputOk = outputFits(unit.output, outChannels);
   const outputLabel = outputText(unit.output) + (outputOk ? "" : "   UNAVAILABLE");
 
@@ -347,7 +384,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
           <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
         </Button>
         {/* the parameter rows; their state lives in the unit record, so values survive the popover closing */}
-        <Popover>
+        <Popover onOpenChange={setSettingsOpen}>
           <PopoverTrigger asChild>
             <Button aria-label="SETTINGS" className={`${ROUND} right-2.5 bottom-2.5 data-[state=open]:bg-foreground data-[state=open]:text-background`}>
               <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
@@ -396,9 +433,16 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
                   <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup contentStyle={ink} onChange={v => set({ scale: v })} />
                 </Param>
               )}
-              <Param id={`${p}-p-voice`} label="SOUNDFONT" value={voiceTag}>
-                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} contentStyle={ink} onChange={v => set({ voice: v })} />
+              <Param id={`${p}-p-voice`} label="SOUND" value={voiceTag}>
+                {/* a new sound starts with no patch: an external synth on its INIT */}
+                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} contentStyle={ink} onChange={v => { if (v !== voice) set({ voice: v, patch: null }); }} />
               </Param>
+              {ext && (
+                <Param id={`${p}-p-patch`} label="PATCH" value={patchText}>
+                  <PatchSelect id={`${p}-p-patch`} synth={ext} value={unit.patch} display={patchText} contentStyle={ink}
+                    onPick={(patch, patchName) => { if (patch) setPatchName({ id: patch, name: patchName }); set({ patch }); }} />
+                </Param>
+              )}
               {/* not on phones and tablets, which play through their own output */}
               <div className="touch:hidden">
                 <Param id={`${p}-p-out`} label="OUTPUT" value={outputLabel}>
@@ -439,9 +483,9 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             );
           })}
         </div>
-        {/* what the pads play: the voice (no program number) and the scale, or FURIN BELL */}
+        {/* what the pads play: the voice (no program number; an external synth with its patch) and the scale, or FURIN BELL */}
         <p className="m-0 max-w-full truncate border border-t-0 border-foreground bg-background px-2 py-1 text-[10px] leading-[1.3]" style={{ width: canvasPx + 2 }}>
-          {voiceItem.name} · {furin ? "FURIN BELL" : unit.scale}
+          {voiceItem.name}{ext && ` · ${patchText}`} · {furin ? "FURIN BELL" : unit.scale}
         </p>
       </div>
     </motion.section>
