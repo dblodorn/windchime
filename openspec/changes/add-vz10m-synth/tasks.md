@@ -11,7 +11,7 @@
 ## 2. Package and setup (windchime)
 
 - [x] 2.1 Add a committed `.npmrc` with only the `@dblodorn` registry (the token lives in `~/.npmrc` as `${GITHUB_PACKAGES_TOKEN}`, since pnpm 12 won't expand env vars in a repo's auth settings), install `@dblodorn/casio-vz-engine` pinned to 0.1.0, and verify `pnpm install --frozen-lockfile` succeeds and the package imports in Node
-- [ ] 2.2 Add `NPM_RC` (`//npm.pkg.github.com/:_authToken=<read:packages token>`, Sensitive) to the Vercel `windchime` project for Production and Preview (done by the user), and verify a preview deployment installs and builds
+- [x] 2.2 Add `NPM_RC` (`//npm.pkg.github.com/:_authToken=<read:packages token>`, Sensitive) to the Vercel `windchime` project for Production and Preview (done by the user), and verify a preview deployment installs and builds
 - [x] 2.3 Run `pnpm schema:pull` after 1.5 and verify `schemas/dmbk-graphql-api.graphql` has `SynthPatch`, `ChimeUnit.patch` and `dmbkSoundVzVoices`
 
 ## 3. Synth registry and INIT
