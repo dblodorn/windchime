@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@dblodorn/casio-vz-engine": "0.1.0",
+    "@dblodorn/yamaha-dx7-engine": "0.1.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.1",
     "lucide-react": "^1.66.0",

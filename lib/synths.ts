@@ -9,6 +9,7 @@
 // No React, no Relay and no browser globals here: lib/engine.ts and lib/share.ts import it, in Node too. The
 // engine itself is a dynamic import, so its code (and its inlined worklet) loads only when a unit sounds with it.
 import { casioVzInit } from "./synths/casio-vz-init.ts";
+import { yamahaDx7Init } from "./synths/yamaha-dx7-init.ts";
 
 // the common surface every engine package's `createSynth` returns
 export interface SynthLike {
@@ -27,6 +28,7 @@ export interface ExternalSynth {
   init: () => Uint8Array; // the bundled INIT patch, a fresh copy
   patchType: string; // the library's GraphQL type (implements SynthPatch), for global ids
   patchBytes: number; // a patch's length, checked on every fetch
+  nameLength: number; // a patch name's longest, which is also the library's limit on `search`
   engine: () => Promise<{ createSynth(ctx: BaseAudioContext): Promise<SynthLike> }>;
 }
 
@@ -38,7 +40,18 @@ export const EXTERNAL_SYNTHS: readonly ExternalSynth[] = [
     init: casioVzInit,
     patchType: "VzVoice",
     patchBytes: 336,
+    nameLength: 12,
     engine: () => import("@dblodorn/casio-vz-engine"),
+  },
+  {
+    id: "yamaha-dx7",
+    name: "YAMAHA DX7",
+    initName: "INIT VOICE",
+    init: yamahaDx7Init,
+    patchType: "Dx7Voice",
+    patchBytes: 155,
+    nameLength: 10,
+    engine: () => import("@dblodorn/yamaha-dx7-engine"),
   },
 ];
 

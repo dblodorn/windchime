@@ -374,6 +374,21 @@ type DmbkSoundChimeCompositionEdge {
   node: ChimeComposition!
 }
 
+input DmbkSoundDeleteDx7VoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the voice."""
+  creatorKey: String!
+  id: ID!
+}
+
+type DmbkSoundDeleteDx7VoicePayload {
+  clientMutationId: ID
+
+  """The deleted voice, for `@deleteRecord`."""
+  deletedDx7VoiceId: ID!
+}
+
 input DmbkSoundDeleteVzVoiceInput {
   clientMutationId: ID
 
@@ -389,6 +404,12 @@ type DmbkSoundDeleteVzVoicePayload {
   deletedVzVoiceId: ID!
 }
 
+"""A voice with its cursor in the `dmbkSoundDx7Voices` ordering."""
+type DmbkSoundDx7VoiceEdge {
+  cursor: String!
+  node: Dx7Voice!
+}
+
 input DmbkSoundSaveChimeCompositionInput {
   clientMutationId: ID
 
@@ -401,6 +422,27 @@ type DmbkSoundSaveChimeCompositionPayload {
   chimeCompositionEdge: DmbkSoundChimeCompositionEdge!
   clientMutationId: ID
   created: Boolean!
+}
+
+input DmbkSoundSaveDx7VoiceInput {
+  clientMutationId: ID
+
+  """
+  The saving browser's device key (32 random bytes, base64url). Only its hash is stored.
+  """
+  creatorKey: String!
+
+  """
+  The 155 unpacked voice bytes (VCED) as base64 (208 characters). The name is read from them.
+  """
+  data: String!
+}
+
+type DmbkSoundSaveDx7VoicePayload {
+  clientMutationId: ID
+  created: Boolean!
+  dx7Voice: Dx7Voice!
+  dx7VoiceEdge: DmbkSoundDx7VoiceEdge!
 }
 
 input DmbkSoundSaveVzVoiceInput {
@@ -435,6 +477,17 @@ type DmbkSoundSetChimeCompositionHiddenPayload {
   clientMutationId: ID
 }
 
+input DmbkSoundSetDx7VoiceHiddenInput {
+  clientMutationId: ID
+  hidden: Boolean!
+  id: ID!
+}
+
+type DmbkSoundSetDx7VoiceHiddenPayload {
+  clientMutationId: ID
+  dx7Voice: Dx7Voice!
+}
+
 input DmbkSoundSetVzVoiceHiddenInput {
   clientMutationId: ID
   hidden: Boolean!
@@ -444,6 +497,24 @@ input DmbkSoundSetVzVoiceHiddenInput {
 type DmbkSoundSetVzVoiceHiddenPayload {
   clientMutationId: ID
   vzVoice: VzVoice!
+}
+
+input DmbkSoundUpdateDx7VoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the voice."""
+  creatorKey: String!
+
+  """
+  The 155 unpacked voice bytes (VCED) as base64 (208 characters). The name is read from them.
+  """
+  data: String!
+  id: ID!
+}
+
+type DmbkSoundUpdateDx7VoicePayload {
+  clientMutationId: ID
+  dx7Voice: Dx7Voice!
 }
 
 input DmbkSoundUpdateVzVoiceInput {
@@ -468,6 +539,36 @@ type DmbkSoundUpdateVzVoicePayload {
 type DmbkSoundVzVoiceEdge {
   cursor: String!
   node: VzVoice!
+}
+
+"""
+A Yamaha DX7 voice saved anonymously. Hidden ones are visible to admins only.
+"""
+type Dx7Voice implements Node & SynthPatch {
+  """ISO-8601. The listing is ordered by this."""
+  createdAt: String!
+
+  """
+  The 155 unpacked voice bytes (VCED, OP6 first) as base64 (208 characters).
+  """
+  data: String!
+
+  """Admin only."""
+  hidden: Boolean
+  id: ID!
+
+  """
+  The voice's name as the DX7 shows it, read from the bytes; may be empty.
+  """
+  name: String!
+
+  """ISO-8601. Equals createdAt until the voice is updated."""
+  updatedAt: String!
+
+  """
+  Whether this device key saved the voice. The key is never stored, only compared by hash.
+  """
+  yours(creatorKey: String!): Boolean!
 }
 
 """An image generated with a LoRA."""
@@ -710,6 +811,11 @@ type Mutation {
   """
   Delete a voice for good. Only the device key that saved it may; others get FORBIDDEN.
   """
+  dmbkSoundDeleteDx7Voice(input: DmbkSoundDeleteDx7VoiceInput!): DmbkSoundDeleteDx7VoicePayload!
+
+  """
+  Delete a voice for good. Only the device key that saved it may; others get FORBIDDEN.
+  """
   dmbkSoundDeleteVzVoice(input: DmbkSoundDeleteVzVoiceInput!): DmbkSoundDeleteVzVoicePayload!
 
   """
@@ -724,9 +830,23 @@ type Mutation {
   bytes again returns the stored voice with `created: false`. Obscene names are
   refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
   """
+  dmbkSoundSaveDx7Voice(input: DmbkSoundSaveDx7VoiceInput!): DmbkSoundSaveDx7VoicePayload!
+
+  """
+  Save a voice anonymously under a device key. The same key saving identical
+  bytes again returns the stored voice with `created: false`. Obscene names are
+  refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
+  """
   dmbkSoundSaveVzVoice(input: DmbkSoundSaveVzVoiceInput!): DmbkSoundSaveVzVoicePayload!
   dmbkSoundSetChimeCompositionHidden(input: DmbkSoundSetChimeCompositionHiddenInput!): DmbkSoundSetChimeCompositionHiddenPayload!
+  dmbkSoundSetDx7VoiceHidden(input: DmbkSoundSetDx7VoiceHiddenInput!): DmbkSoundSetDx7VoiceHiddenPayload!
   dmbkSoundSetVzVoiceHidden(input: DmbkSoundSetVzVoiceHiddenInput!): DmbkSoundSetVzVoiceHiddenPayload!
+
+  """
+  Replace a voice's bytes (renaming it too, since the name is in them). Only the
+  device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundUpdateDx7Voice(input: DmbkSoundUpdateDx7VoiceInput!): DmbkSoundUpdateDx7VoicePayload!
 
   """
   Replace a voice's bytes (renaming it too, since the name is in them). Only the
@@ -836,6 +956,23 @@ type Query {
   """Saved windchime compositions that are not hidden, newest first."""
   dmbkSoundChimeCompositions(after: String, before: String, first: Int, last: Int): QueryDmbkSoundChimeCompositionsConnection!
 
+  """
+  Saved DX7 voices that are not hidden, newest first. `creatorKey` narrows them
+  to that device key's voices; `search` to names containing the text.
+  """
+  dmbkSoundDx7Voices(
+    after: String
+    before: String
+
+    """A device key: only the voices it saved."""
+    creatorKey: String
+    first: Int
+    last: Int
+
+    """Names containing this text, ignoring case; at most 10 characters."""
+    search: String
+  ): QueryDmbkSoundDx7VoicesConnection!
+
   """The latest cached SoundCloud playlists snapshot."""
   dmbkSoundPlaylists: SoundSnapshot
 
@@ -888,6 +1025,16 @@ type QueryDmbkSoundChimeCompositionsConnection {
 type QueryDmbkSoundChimeCompositionsConnectionEdge {
   cursor: String!
   node: ChimeComposition!
+}
+
+type QueryDmbkSoundDx7VoicesConnection {
+  edges: [QueryDmbkSoundDx7VoicesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryDmbkSoundDx7VoicesConnectionEdge {
+  cursor: String!
+  node: Dx7Voice!
 }
 
 type QueryDmbkSoundVzVoicesConnection {
@@ -968,7 +1115,7 @@ type SoundUser {
 }
 
 """
-A patch in an external synth's library: its display name and its bytes. VzVoice is one.
+A patch in an external synth's library: its display name and its bytes. VzVoice and Dx7Voice are ones.
 """
 interface SynthPatch {
   """The patch's bytes as base64, in the synth's own format."""

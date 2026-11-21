@@ -1,0 +1,4 @@
+# pnpm holds back packages published less than a day ago; our own engine package is exempt, so a release can be
+# adopted the day it's published (locally and on Vercel).
+minimumReleaseAgeExclude:
+  - '@dblodorn/yamaha-dx7-engine@0.1.0'
