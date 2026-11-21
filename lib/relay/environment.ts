@@ -39,3 +39,8 @@ async function fetchOperation(params: RequestParameters, variables: Variables): 
 export function createRelayEnvironment() {
   return new Environment({ network: Network.create(fetchOperation), store: new Store(new RecordSource()) });
 }
+
+// one store for the page's lifetime, shared by COMPOSITIONS (so reopening the panel shows the list at once, and
+// refetches it) and the external synths' patches (lib/patches.ts, components/PatchList.tsx)
+let shared: Environment | null = null;
+export const relayEnvironment = () => (shared ??= createRelayEnvironment());

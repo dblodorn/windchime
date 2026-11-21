@@ -5,8 +5,8 @@
 // so Relay and every request stay off the page until then. Picking a row hands its units to `onOpen`.
 import { Component, Suspense, useRef, useState, type ReactNode } from "react";
 import { ConnectionHandler, RelayEnvironmentProvider, graphql, useFragment, useLazyLoadQuery, useMutation, usePaginationFragment } from "react-relay";
-import type { Environment, RecordSourceSelectorProxy } from "relay-runtime";
-import { createRelayEnvironment } from "../lib/relay/environment";
+import type { RecordSourceSelectorProxy } from "relay-runtime";
+import { relayEnvironment } from "../lib/relay/environment";
 import * as Sh from "../lib/share";
 import { Button } from "@/components/ui/button";
 import type { CompositionsQuery } from "./__generated__/CompositionsQuery.graphql";
@@ -27,9 +27,6 @@ const savedAt = (iso: string) => {
 };
 const CONNECTION_KEY = "Compositions_dmbkSoundChimeCompositions";
 
-// one store for the page's lifetime, so reopening the panel shows the list at once (and refetches it: `opening`)
-let environment: Environment | null = null;
-const relayEnvironment = () => (environment ??= createRelayEnvironment());
 
 const ListQuery = graphql`
   query CompositionsQuery($count: Int, $cursor: String) {
@@ -57,7 +54,7 @@ const RowFragment = graphql`
     title
     unitCount
     createdAt
-    units { instrument volume tubes wind decay cutoff resonance root scale voice channel midiMode notes x y rank }
+    units { instrument volume tubes wind decay cutoff resonance root scale voice patch channel midiMode notes x y rank }
   }
 `;
 
