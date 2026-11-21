@@ -52,7 +52,7 @@ lib/colors.ts        channel inks: CHANNEL_INKS (16 Sanzo Wada colors, channel 1
 lib/midiout.ts       Web MIDI output (port lifecycle; notes, CC, program, test note, panic, each on a given channel)
 lib/share.ts         unit record schema (zod), share links (encode/decode for the URL fragment) and saved compositions (toSaved/fromSaved)
 lib/synths.ts        EXTERNAL_SYNTHS, the external-synth registry (append-only: a link stores 1 + an entry's index), synthOf(voice), PATCH_ID
-lib/synths/casio-vz-init.ts the VZ-10M's INIT patch, 336 bytes from the vz10m editor's initVoice("INIT")
+lib/synths/casio-vz-init.ts the VZ-10M's INIT patch, 336 bytes: the vz10m editor's initVoice("INIT") with M2 and M3 also on, so it is as loud as the built-in voices
 lib/patches.ts       getPatch(synth, id): a shared patch's name and bytes through node(id) … on SynthPatch, once per visit (failures forgotten); loaded by dynamic import()
 public/TimGM6mb.sf2  bundled General MIDI soundfont (GPL v2, ~6 MB), fetched in pieces with HTTP range requests
 ```
