@@ -11,8 +11,9 @@ import { rememberName } from "../lib/patches";
 import type { ExternalSynth } from "../lib/synths";
 import { SearchSelect, type SearchFooter, type SearchOption } from "@/components/ui/search-select";
 import type { PatchSelectVzQuery, PatchSelectVzQuery$data } from "./__generated__/PatchSelectVzQuery.graphql";
+import type { PatchSelectDx7Query, PatchSelectDx7Query$data } from "./__generated__/PatchSelectDx7Query.graphql";
 
-const PAGE = 20, SEARCH_MAX = 12; // the API's page size and its limit on `search`
+const PAGE = 20; // the API's page size; its limit on `search` is the synth's nameLength
 const INIT = "init"; // the INIT option's value (select values can't be empty)
 
 // each synth's library listing; a later synth adds its own query here
@@ -24,17 +25,30 @@ const VzQuery = graphql`
     }
   }
 `;
+const Dx7Query = graphql`
+  query PatchSelectDx7Query($first: Int!, $after: String, $search: String) {
+    dmbkSoundDx7Voices(first: $first, after: $after, search: $search) {
+      edges { node { id name } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
 type Page = { items: { id: string; name: string }[]; next: string | null };
 // a library node's global id is base64 of "<Type>:<id>"; a unit stores the 24-hex id
 const localId = (globalId: string) => { try { return atob(globalId).split(":")[1] ?? ""; } catch { return ""; } };
-const fromVz = (d: PatchSelectVzQuery$data): Page => ({
-  items: d.dmbkSoundVzVoices.edges.map(e => ({ id: localId(e.node.id), name: e.node.name.trim() })).filter(p => /^[0-9a-f]{24}$/.test(p.id)),
-  next: d.dmbkSoundVzVoices.pageInfo.hasNextPage ? d.dmbkSoundVzVoices.pageInfo.endCursor ?? null : null,
+// a library's connection → a page, the same for every synth
+type Connection = PatchSelectVzQuery$data["dmbkSoundVzVoices"] | PatchSelectDx7Query$data["dmbkSoundDx7Voices"];
+const toPage = (c: Connection): Page => ({
+  items: c.edges.map(e => ({ id: localId(e.node.id), name: e.node.name.trim() })).filter(p => /^[0-9a-f]{24}$/.test(p.id)),
+  next: c.pageInfo.hasNextPage ? c.pageInfo.endCursor ?? null : null,
 });
 const LISTS: Record<string, (search: string, after: string | null) => Promise<Page>> = {
   "casio-vz": (search, after) =>
     fetchQuery<PatchSelectVzQuery>(relayEnvironment(), VzQuery, { first: PAGE, after, search: search || null }, { fetchPolicy: "network-only" })
-      .toPromise().then(d => fromVz(d!)),
+      .toPromise().then(d => toPage(d!.dmbkSoundVzVoices)),
+  "yamaha-dx7": (search, after) =>
+    fetchQuery<PatchSelectDx7Query>(relayEnvironment(), Dx7Query, { first: PAGE, after, search: search || null }, { fetchPolicy: "network-only" })
+      .toPromise().then(d => toPage(d!.dmbkSoundDx7Voices)),
 };
 
 // the last list per synth and search, so reopening shows it at once
@@ -72,7 +86,7 @@ export default function PatchSelect({ id, synth, value, display, onPick, content
   };
   // every opening (q "") and every search: show the last list for it, fetch it again (typing waits a moment)
   const onQueryChange = (q: string) => {
-    const s = q.trim().slice(0, SEARCH_MAX);
+    const s = q.trim().slice(0, synth.nameLength);
     setSearch(s);
     setPage(lastLists.get(`${synth.id}:${s}`) ?? { items: [], next: null });
     clearTimeout(timer.current);
@@ -93,7 +107,7 @@ export default function PatchSelect({ id, synth, value, display, onPick, content
 
   return (
     <SearchSelect id={id} value={value ?? INIT} display={display} groups={[{ label: "", items: options }]} filter={false}
-      onQueryChange={onQueryChange} maxLength={SEARCH_MAX} footer={footer} contentStyle={contentStyle}
+      onQueryChange={onQueryChange} maxLength={synth.nameLength} footer={footer} contentStyle={contentStyle}
       onChange={v => {
         if (v === INIT) { onPick(null, synth.initName); return; }
         const name = nameOf(page.items.find(p => p.id === v)?.name ?? "");
