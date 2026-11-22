@@ -54,7 +54,7 @@ The heading SHALL stay at the top of the panel, spanning its full width with a 1
 - **THEN** the repository opens in a new tab and the player keeps running
 
 ### Requirement: Saving a composition
-SAVE SHALL save every unit of the current composition (the same settings, instrument and root note included, position and stacking order a share link carries; never SOUND, OUTPUT, the audio output device, the MIDI port or the SEND options) to the public list, anonymously: no account, name or text is asked for or sent. Any root note from C-1 to B8 SHALL be saveable. While a save is in progress the button SHALL read `SAVING…` and be disabled. On success it SHALL read `SAVED` for about 1.5 seconds. The saved composition SHALL appear at the top of the list with the title the API gave it. Saving a composition identical to one already in the list SHALL show that existing entry instead of adding a second; compositions that differ only in their units' OUTPUT are identical. When the save fails, the panel SHALL show a one-line message in plain text: `TOO MANY SAVES, TRY LATER` when the API rate-limits it, and `COULD NOT SAVE` otherwise. The composition on the page SHALL be unchanged either way.
+SAVE SHALL save every unit of the current composition (the same settings, instrument, root note and external-synth patch reference included, position and stacking order a share link carries; never SOUND on/off, OUTPUT, the audio output device, the MIDI port, the SEND options, or a patch's bytes or name) to the public list, anonymously: no account, name or text is asked for or sent. Any root note from C-1 to B8 SHALL be saveable, and any patch reference a unit can hold SHALL be saveable. While a save is in progress the button SHALL read `SAVING…` and be disabled. On success it SHALL read `SAVED` for about 1.5 seconds. The saved composition SHALL appear at the top of the list with the title the API gave it. Saving a composition identical to one already in the list SHALL show that existing entry instead of adding a second; compositions that differ only in their units' OUTPUT are identical. A composition with no unit on an external synth SHALL be sent exactly as it was before this change, so a composition saved before this change and saved again unchanged is recognized as the same entry. When the save fails, the panel SHALL show a one-line message in plain text: `TOO MANY SAVES, TRY LATER` when the API rate-limits it, and `COULD NOT SAVE` otherwise. The composition on the page SHALL be unchanged either way.
 
 #### Scenario: Save
 - **WHEN** the user arranges two units and presses SAVE
@@ -63,6 +63,10 @@ SAVE SHALL save every unit of the current composition (the same settings, instru
 #### Scenario: Save again
 - **WHEN** the user presses SAVE twice without changing anything
 - **THEN** the list still holds one entry for that composition
+
+#### Scenario: Saved before, saved again
+- **WHEN** a composition saved before this change is loaded and saved again without changes
+- **THEN** the list still holds one entry for it
 
 #### Scenario: OUTPUT is not saved
 - **WHEN** the user saves a composition with units on OUTPUT `3–4` and `7`, changes them to `1–2`, and saves again
@@ -79,6 +83,14 @@ SAVE SHALL save every unit of the current composition (the same settings, instru
 #### Scenario: Save extreme root notes
 - **WHEN** the user saves a composition with units at root notes C-1 and B8 and then loads it from the list
 - **THEN** the save succeeds, and the units load at C-1 and B8
+
+#### Scenario: Save an external synth
+- **WHEN** the user saves a composition with a unit on CASIO VZ-10M with patch KILLER ORGAN and another on CASIO VZ-10M with INIT, then loads it from the list
+- **THEN** the units load on CASIO VZ-10M with KILLER ORGAN and INIT, and the data sent to the API held each unit's synth and patch id and no patch bytes or name
+
+#### Scenario: Patch changes the composition
+- **WHEN** the user saves a composition, changes one VZ-10M unit's patch, and saves again
+- **THEN** the list holds two entries
 
 ### Requirement: Browsing saved compositions
 When the panel opens, it SHALL fetch the newest 20 visible compositions and show each as one row, a button whose accessible name begins with the composition's title. Each row SHALL show the title and the save date, and SHALL NOT show the unit count. MORE SHALL fetch the next 20 and append them. While a fetch is in progress the list SHALL show `LOADING…`. When it fails, it SHALL show `COULD NOT LOAD` with a RETRY button. The page SHALL NOT contact the API before the panel is first opened or SAVE is pressed.
@@ -107,7 +119,7 @@ Activating a row SHALL replace the page's units with the composition's units, as
 - the stored composition (`windchime.units`) becomes the loaded one;
 - positions that fall outside the viewport are pulled back inside.
 
-If the browser does not allow sound to start, the units SHALL still load, with SOUND off. SOUND SHALL NOT be stored, so after a reload the loaded units start muted, like every unit on load. Every loaded unit SHALL pass the same checks as stored and linked units. A composition that fails them SHALL NOT replace the page, SHALL NOT start sound, and the panel SHALL show `COULD NOT OPEN`. After loading, the panel SHALL close. A composition loaded this way SHALL produce the same SHARE link as the one it was saved from.
+If the browser does not allow sound to start, the units SHALL still load, with SOUND off. SOUND SHALL NOT be stored, so after a reload the loaded units start muted, like every unit on load. Every loaded unit SHALL pass the same checks as stored and linked units. A composition that fails them SHALL NOT replace the page, SHALL NOT start sound, and the panel SHALL show `COULD NOT OPEN`. After loading, the panel SHALL close. A composition loaded this way SHALL produce the same SHARE link as the one it was saved from. Every composition saved before this change SHALL load with exactly the values it loaded with before; it has no external-synth units. A saved unit referring to an external synth this page does not know SHALL load with its instrument's default sound rather than fail the composition, and a saved patch that is no longer in the synth's library SHALL load and then fall back to INIT as `external-synths` says.
 
 #### Scenario: Load
 - **WHEN** a visitor selects a three-unit composition in the list
@@ -128,6 +140,14 @@ If the browser does not allow sound to start, the units SHALL still load, with S
 #### Scenario: Round trip
 - **WHEN** a composition is saved, then loaded, and SHARE is pressed
 - **THEN** the copied link is identical to the link SHARE gave before the save
+
+#### Scenario: Saved before this change
+- **WHEN** a composition saved before this change is loaded
+- **THEN** its units load with the same settings, sounds and positions as before this change
+
+#### Scenario: Deleted patch in a saved composition
+- **WHEN** a loaded composition has a VZ-10M unit whose patch has since been deleted
+- **THEN** the composition loads, and that unit plays and shows INIT
 
 ### Requirement: Server route to the API
 The browser SHALL reach the dmbk GraphQL API only through this app's own route, which SHALL:
