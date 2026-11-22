@@ -11,4 +11,4 @@
   - the notes line reads `YAMAHA DX7 · BELL DX7 · RYUKYU`;
   - SOUND loads the `yamaha-dx7-engine` worklet and it sounds;
   - no errors.
-- [ ] 2.1 After dmbk-graphql-api #45 and #46 deploy and this merges: on https://chime.dmbk.io pick YAMAHA DX7 and a shared patch, save the composition, reload it.
+- [x] 2.1 After dmbk-graphql-api #45 and #46 deploy and this merges: on https://chime.dmbk.io pick YAMAHA DX7 and a shared patch, save the composition, reload it. Done by the user, 2026-11-21: saved and reloaded successfully.

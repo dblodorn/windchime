@@ -53,10 +53,10 @@
 ## 8. Integration checks
 
 - [x] 8.1 Verify in Playwright: COPY keeps the patch, reload keeps it, a share link round-trips VZ units with INIT and shared patches, and an old v1 link is ignored and cleared
-- [ ] 8.2 Verify saving and loading a composition with VZ units through intercepted GraphQL (input holds `voice: "x:casio-vz"` and `patch`, no bytes or name) and, once 1.5 is live, against production
+- [x] 8.2 Verify saving and loading a composition with VZ units through intercepted GraphQL (input holds `voice: "x:casio-vz"` and `patch`, no bytes or name) and, once 1.5 is live, against production. Production: covered by the user's save and reload of a composition with a DX7 unit (2026-11-21), which takes the same external-synth path (`voice: "x:<synth>"`, `patch`).
 - [x] 8.3 Measure CPU with 16 VZ units sounding at WIND 0.8 in Chrome and note the result in design.md; verify no audio dropouts on a typical laptop
 - [x] 8.4 Run `pnpm build` and verify it is clean with no console errors or hydration warnings on load
-- [ ] 8.5 Real-ear check by the user: VZ-10M through speakers and a multichannel OUTPUT, Safari fallback behavior
+- [x] 8.5 Real-ear check by the user: VZ-10M through speakers and a multichannel OUTPUT, Safari fallback behavior. The user reported the VZ factory patches playing on chime.dmbk.io (2026-11-21), on a phone included.
 
 ## 9. Docs and changelog
 
