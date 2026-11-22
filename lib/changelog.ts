@@ -14,6 +14,7 @@ export type ChangeType = keyof typeof TYPES;
 export interface Change { date: string; type: ChangeType; text: string }
 
 export const CHANGELOG: Change[] = [
+  { date: "2026-11-22", type: "ENHANCEMENT", text: "MENU credits the typeface: Knif Mono by A is for fonts." },
   { date: "2026-11-21", type: "FEATURE", text: "Yamaha DX7 as a sound, with a PATCH picker of the voices shared from the DX7 editor (dx7.dmbk.io)." },
   { date: "2026-11-21", type: "ENHANCEMENT", text: "The CASIO VZ-10M's INIT patch is as loud as the built-in voices." },
   { date: "2026-11-20", type: "FEATURE", text: "Casio VZ-10M as a sound, with a PATCH picker of the voices shared from the VZ-10M editor." },

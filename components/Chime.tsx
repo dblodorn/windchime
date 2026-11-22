@@ -849,6 +849,8 @@ export default function Chime() {
               <Link href="/changelog" className={FOOT_LINK}>CHANGELOG</Link>
               <a href="https://github.com/dblodorn/windchime" target="_blank" rel="noreferrer" className={FOOT_LINK}>GITHUB</a>
             </div>
+            {/* the typeface's credit: Knif Mono, licensed from A is for fonts */}
+            <a href="https://aisforfonts.com/knif/" target="_blank" rel="noreferrer" className={FOOT_LINK}>TYPE: KNIF MONO BY A IS FOR FONTS</a>
           </footer>
         </SheetContent>
       </Sheet>
