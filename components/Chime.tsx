@@ -186,6 +186,15 @@ function loadUnits() {
 const lowestFreeChannel = (units: PageUnit[]) => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
+// MENU's COLOPHON: the typeface's credit, then the sound apps whose voices windchime plays
+const COLOPHON = [
+  { name: "TYPE: KNIF MONO BY A IS FOR FONTS", url: "https://aisforfonts.com/knif/", text: "Chime is set in Knif Mono, licensed from the foundry A is for fonts." },
+  { name: "CASIO VZ-10M EDITOR", url: "https://vz10m.dmbk.io/", text: "Edit and share VZ-10M voices: the ones PATCH lists for the CASIO VZ-10M sound." },
+  { name: "YAMAHA DX7 EDITOR", url: "https://dx7.dmbk.io/", text: "Edit and share DX7 voices and banks, Yamaha's factory ROM cards included: the ones PATCH lists for YAMAHA DX7." },
+] as const;
+const MENU_TABS = [{ value: "compositions", label: "COMPOSITIONS" }, { value: "colophon", label: "COLOPHON" }] as const;
+type MenuTab = (typeof MENU_TABS)[number]["value"];
+
 // the COMPOSITIONS footer's text links
 const FOOT_LINK = "text-foreground underline underline-offset-3 hover:no-underline focus-visible:outline-1 focus-visible:outline-dashed focus-visible:outline-foreground focus-visible:outline-offset-3";
 
@@ -529,6 +538,7 @@ export default function Chime() {
   const [audioMsg, setAudioMsg] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuOpenings, setMenuOpenings] = useState(0);
+  const [menuTab, setMenuTab] = useState<MenuTab>("compositions");
   const onMenuOpenChange = useCallback((open: boolean) => { setMenuOpen(open); if (open) setMenuOpenings(n => n + 1); }, []);
 
   // fetch the audio library in the background; restore the units
@@ -819,7 +829,8 @@ export default function Chime() {
         </div>
       )}
 
-      {/* MENU (upper right) opens the COMPOSITIONS panel: SAVE and the public list of saved compositions. The one icon
+      {/* MENU (upper right) opens a panel in two tabs: COMPOSITIONS (SAVE and the public list of saved compositions)
+          and COLOPHON (the typeface's credit, the editor apps). The one icon
           outside the units' round buttons, by request; square like SHARE and MIDI. */}
       <Sheet open={menuOpen} onOpenChange={onMenuOpenChange}>
         <SheetTrigger asChild>
@@ -833,14 +844,33 @@ export default function Chime() {
         <SheetContent aria-describedby={undefined} className="overflow-hidden">
           {/* edge to edge with a rule under it, like the footer; rows scroll up under the rule */}
           <SheetHeader className="-mx-4 border-b border-foreground px-4 pb-3.5">
-            <SheetTitle>COMPOSITIONS</SheetTitle>
+            <SheetTitle>{menuTab === "colophon" ? "COLOPHON" : "COMPOSITIONS"}</SheetTitle>
             <SheetClose asChild><Button>CLOSE</Button></SheetClose>
           </SheetHeader>
+          <div role="tablist" aria-label="MENU" className="-mt-1 flex gap-1.5">
+            {MENU_TABS.map(t => (
+              <Button key={t.value} role="tab" id={`menu-tab-${t.value}`} aria-controls={`menu-panel-${t.value}`} aria-selected={menuTab === t.value}
+                className="aria-selected:bg-foreground aria-selected:text-background" onClick={() => setMenuTab(t.value)}>{t.label}</Button>
+            ))}
+          </div>
           {/* only the middle scrolls, between the two rules: its -mt and the footer's cancel the sheet's gaps, its top
               padding gives the first row the same 14 px at rest, and 4 px at the sides and bottom (cancelled by -mx)
               keeps focus outlines unclipped; no scrollbar */}
           <div className="-mx-1 -mt-3.5 grid min-h-0 flex-1 content-start gap-3.5 overflow-y-auto px-1 pt-3.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <Compositions opening={menuOpenings} onOpen={openSaved} />
+            {/* kept mounted while COLOPHON shows, so going back doesn't refetch the list */}
+            <div role="tabpanel" id="menu-panel-compositions" aria-labelledby="menu-tab-compositions" hidden={menuTab !== "compositions"} className="grid content-start gap-3.5">
+              <Compositions opening={menuOpenings} onOpen={openSaved} />
+            </div>
+            {menuTab === "colophon" && (
+              <ul role="tabpanel" id="menu-panel-colophon" aria-labelledby="menu-tab-colophon" className="m-0 grid list-none content-start p-0">
+                {COLOPHON.map(c => (
+                  <li key={c.url} className="grid gap-1 border-t border-dashed border-foreground py-2 first:border-t-0 first:pt-0">
+                    <a href={c.url} target="_blank" rel="noreferrer" className={`w-fit text-[11px] tracking-[.08em] ${FOOT_LINK}`}>{c.name}</a>
+                    <p className="m-0 max-w-[60ch] text-[11px]">{c.text}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           {/* edge to edge: the negative margins cancel the sheet's padding, the bottom one its safe-area padding too */}
           <footer className="-mx-4 -mt-3.5 -mb-[calc(16px+env(safe-area-inset-bottom))] grid gap-3.5 border-t border-foreground px-4 pt-3.5 pb-[calc(14px+env(safe-area-inset-bottom))] text-[11px] tracking-[.08em]">
