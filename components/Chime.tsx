@@ -186,9 +186,10 @@ function loadUnits() {
 const lowestFreeChannel = (units: PageUnit[]) => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
-// MENU's COLOPHON: the typeface's credit, then the sound apps whose voices windchime plays
+// MENU's COLOPHON: the typeface's credit, the design system, then the sound apps whose voices windchime plays
 const COLOPHON = [
   { name: "TYPE: KNIF MONO BY A IS FOR FONTS", url: "https://aisforfonts.com/knif/", text: "Chime is set in Knif Mono, licensed from the foundry A is for fonts." },
+  { name: "SOUND DESIGN SYSTEM", url: "https://soundsystem.dmbk.io/", text: "The controls, type and colors Chime shares with the VZ-10M and DX7 editors." },
   { name: "CASIO VZ-10M EDITOR", url: "https://vz10m.dmbk.io/", text: "Edit and share VZ-10M voices: the ones PATCH lists for the CASIO VZ-10M sound." },
   { name: "YAMAHA DX7 EDITOR", url: "https://dx7.dmbk.io/", text: "Edit and share DX7 voices and banks, Yamaha's factory ROM cards included: the ones PATCH lists for YAMAHA DX7." },
 ] as const;
