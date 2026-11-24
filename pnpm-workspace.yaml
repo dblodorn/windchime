@@ -2,3 +2,5 @@
 # adopted the day it's published (locally and on Vercel).
 minimumReleaseAgeExclude:
   - '@dblodorn/yamaha-dx7-engine@0.1.0'
+  - '@dblodorn/sound-tokens@0.1.0'
+  - '@dblodorn/sound-ui@0.3.1'

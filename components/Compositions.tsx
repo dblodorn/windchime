@@ -8,7 +8,7 @@ import { ConnectionHandler, RelayEnvironmentProvider, graphql, useFragment, useL
 import type { RecordSourceSelectorProxy } from "relay-runtime";
 import { relayEnvironment } from "../lib/relay/environment";
 import * as Sh from "../lib/share";
-import { Button } from "@/components/ui/button";
+import { Button } from "@dblodorn/sound-ui";
 import type { CompositionsQuery } from "./__generated__/CompositionsQuery.graphql";
 import type { CompositionsPaginationQuery } from "./__generated__/CompositionsPaginationQuery.graphql";
 import type { Compositions_list$key } from "./__generated__/Compositions_list.graphql";

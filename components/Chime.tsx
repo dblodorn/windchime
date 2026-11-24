@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type * as React from "react";
 import { CopyPlus, EighthNote, Menu, Settings2, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -11,14 +11,11 @@ import * as C from "../lib/colors";
 import * as M from "../lib/midiout";
 import * as Sh from "../lib/share";
 import { EXTERNAL_SYNTHS, synthOf } from "../lib/synths";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SearchSelect, type SearchGroup } from "@/components/ui/search-select";
-import { Slider } from "@/components/ui/slider";
+import {
+  Button, Checkbox, Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, InkContext,
+  inkProps, NotePads, Param, ParamSelect, ParamSlider, Popover, PopoverContent, PopoverTrigger, RoundIconButton, SearchSelect,
+  SelectItem, Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger, TypeCredit, type Ink, type SearchGroup,
+} from "@dblodorn/sound-ui";
 
 // a unit as the page holds it; soundQuiet asks for SOUND on without the confirming arpeggio (a loaded composition)
 type PageUnit = Sh.Unit & { soundQuiet?: boolean };
@@ -55,50 +52,12 @@ const deviceName = (d: AudioDevice) => d.label.toUpperCase();
 
 const NOTE = "m-0 max-w-[60ch] text-[11px]";
 const ROW = "mt-2 flex flex-wrap items-center gap-2.5";
-const ROUND = "absolute size-[30px] rounded-[50%] p-0";
-
-// LABEL ....... value, with the control beneath. Controls are named by `${id}-label`, the label text alone.
-function Param({ id, label, value, children }: { id: string; label: string; value: React.ReactNode; children?: React.ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-baseline gap-2 tabular-nums">
-        <span id={`${id}-label`} className="tracking-[.08em]">{label}</span>
-        <span className="lead" />
-        <span className="whitespace-nowrap">{value}</span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function ParamSlider({ id, value, onChange, ...range }: { id: string; value: number; onChange: (v: number) => void }
-  & Omit<React.ComponentProps<typeof Slider>, "id" | "value" | "onChange" | "onValueChange">) {
-  return <Slider id={id} value={[value]} onValueChange={([v]) => onChange(v)} aria-labelledby={`${id}-label`} {...range} />;
-}
-
-// a unit's ink style (C.inkStyle), for popups that portal out of the unit and so don't inherit its tokens
 // PATCH, an external synth's patch list (components/PatchSelect.tsx): its own chunk, with the Relay query, loaded when
 // a unit on an external synth shows its settings. Until then a field that looks like it, disabled.
 const PatchSelect = dynamic(() => import("./PatchSelect"), {
   ssr: false,
   loading: () => <div className="mt-1 border border-foreground px-1 py-0.5 opacity-40">…</div>,
 });
-
-const InkContext = createContext<C.InkStyle | undefined>(undefined);
-
-// `display` is the current choice's text: Radix only fills SelectValue on the client, so pass it in for the server render.
-// onChange gets back the value string of the chosen item.
-function ParamSelect({ id, value, display, onChange, disabled, children }: {
-  id: string; value: string; display: React.ReactNode; onChange: (v: string) => void; disabled?: boolean; children: React.ReactNode;
-}) {
-  const ink = useContext(InkContext);
-  return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger id={id} aria-labelledby={`${id}-label`}><SelectValue>{display}</SelectValue></SelectTrigger>
-      <SelectContent style={ink}>{children}</SelectContent>
-    </Select>
-  );
-}
 
 // MIDI Manufacturers Association "MIDI" wordmark, cropped to its ink.
 // Source: https://commons.wikimedia.org/wiki/File:MIDI_LOGO.svg (PD-textlogo; MIDI is a trademark of the MMA)
@@ -185,10 +144,28 @@ function loadUnits() {
 }
 const lowestFreeChannel = (units: PageUnit[]) => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
+// The notes drawer's pads (the package's NotePads, named "C5 523"): one per tube, or the furin's root alone. Each
+// strikes its tube; a strike, however it comes, flashes its pad for 140 ms, even while the drawer is hidden. Its own
+// component, so a flash re-renders the pads only.
+function TubePads({ chime, root, notes, width }: { chime: E.Chime; root: number; notes: readonly number[]; width: number }) {
+  const [flash, setFlash] = useState<ReadonlySet<number>>(() => new Set());
+  useEffect(() => {
+    const timers = new Map<number, ReturnType<typeof setTimeout>>();
+    const off = chime.onHit(i => {
+      clearTimeout(timers.get(i));
+      setFlash(f => (f.has(i) ? f : new Set(f).add(i)));
+      timers.set(i, setTimeout(() => { timers.delete(i); setFlash(f => { const n = new Set(f); n.delete(i); return n; }); }, 140));
+    });
+    return () => { off(); timers.forEach(clearTimeout); };
+  }, [chime]);
+  const pads = notes.map(s => { const m = E.foldNote(root + s); return { note: E.noteName(m), hz: String(Math.round(E.mtof(m))) }; });
+  return <NotePads pads={pads} flash={flash} onStrike={i => chime.strikeTube(i)} className="border-t-0" style={{ width }} />;
+}
+
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
-// MENU's COLOPHON: the typeface's credit, the design system, then the sound apps whose voices windchime plays
+// MENU's COLOPHON: the typeface's credit (the package's TypeCredit), the design system, then the sound apps whose
+// voices windchime plays
 const COLOPHON = [
-  { name: "TYPE: KNIF MONO BY A IS FOR FONTS", url: "https://aisforfonts.com/knif/", text: "Chime is set in Knif Mono, licensed from the foundry A is for fonts." },
   { name: "SOUND DESIGN SYSTEM", url: "https://soundsystem.dmbk.io/", text: "The controls, type and colors Chime shares with the VZ-10M and DX7 editors." },
   { name: "CASIO VZ-10M EDITOR", url: "https://vz10m.dmbk.io/", text: "Edit and share VZ-10M voices: the ones PATCH lists for the CASIO VZ-10M sound." },
   { name: "YAMAHA DX7 EDITOR", url: "https://dx7.dmbk.io/", text: "Edit and share DX7 voices and banks, Yamaha's factory ROM cards included: the ones PATCH lists for YAMAHA DX7." },
@@ -211,8 +188,6 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const name = `CHIME ${index + 1}`;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stageRef = useRef<HTMLElement>(null);
-  // each pad, with the timer of its strike flash
-  const cellRefs = useRef<((HTMLButtonElement & { _t?: ReturnType<typeof setTimeout> }) | null)[]>([]);
   const dragControls = useDragControls();
   const x = useMotionValue(unit.x);
   const y = useMotionValue(unit.y);
@@ -224,8 +199,10 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   const set = useCallback((patch: UnitPatch) => onChange(id, patch), [id, onChange]);
   // the unit draws in its MIDI channel's ink: the canvas through the engine, everything else through the theme tokens
   // while another channel is focused the unit draws in a 25% tint of its ink, still opaque on white
-  const inkHex = faded ? C.tint(C.inkOf(unit.channel).hex, 0.25) : C.inkOf(unit.channel).hex;
-  const ink = C.inkStyle(inkHex);
+  const base = C.inkOf(unit.channel).hex;
+  const inkHex = faded ? C.tint(base, 0.25) : base;
+  const ink = useMemo<Ink>(() => ({ ink: base, tint: faded ? 0.25 : undefined }), [base, faded]);
+  const inkAttrs = inkProps(ink);
   useEffect(() => chime.setInk(inkHex), [chime, inkHex]);
 
   const scale = useMemo(() => E.tubeNotes(SCALE_BY_NAME[unit.scale].deg, unit.tubes), [unit.scale, unit.tubes]);
@@ -280,15 +257,10 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
     return () => { detach(); chime.destroy(); };
   }, [chime]);
 
-  // flash the tube cell on every strike, and send it to the MIDI port on this unit's channel, tagged with its tube
-  // (in POLY a key sounding from another tube stacks; in MONO it is ended first)
+  // send every strike to the MIDI port on this unit's channel, tagged with its tube (in POLY a key sounding from
+  // another tube stacks; in MONO it is ended first); TubePads flashes the pad
   useEffect(() => chime.onHit((i, vel) => {
     if (M.currentOutput()) M.note(channelRef.current, chime.noteOf(i), vel, decayRef.current, `${id}:${i}`, monoRef.current);
-    const el = cellRefs.current[i];
-    if (!el) return;
-    el.classList.add("hit");
-    clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove("hit"), 140);
   }), [chime, id]);
 
   // MIDI: a channel change ends this channel's sounding notes first; program change and CCs follow the unit's
@@ -366,9 +338,12 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       dragMomentum={false}
       onDragEnd={() => set({ x: Math.round(x.get()), y: Math.round(y.get()) })}
       onPointerDownCapture={() => onFront(id)}
-      style={{ x, y, zIndex: unit.z, ...ink }}
+      data-sound-ink={inkAttrs["data-sound-ink"]}
+      style={{ x, y, zIndex: unit.z, ...inkAttrs.style }}
       className="grid w-[min(402px,100%)] max-sm:w-[min(300px,100%)] min-w-0 justify-items-start [grid-area:1/1]"
     >
+      {/* the unit's ink scope: popups that portal out of it (settings, selects) read it from InkContext */}
+      <InkContext.Provider value={ink}>
       <div className="relative">
         <canvas
           ref={canvasRef}
@@ -382,26 +357,25 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
             : `Wind chime: ${TUBE_WORDS[unit.tubes]} tubes hanging from a ring, a disc clapper and a wind sail. Tap a tube to strike it.`}
         />
         {/* the four round controls and the only icons on the page, by request: Lucide icons drawn without anti-aliasing */}
-        <Button aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className={`${ROUND} top-2.5 left-2.5`}>
+        <RoundIconButton aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className="absolute top-2.5 left-2.5">
           <CopyPlus size={16} aria-hidden="true" shapeRendering="crispEdges" />
-        </Button>
-        <Button aria-label="SOUND" aria-pressed={unit.sound} onClick={onSound} className={`${ROUND} top-2.5 right-2.5`}>
+        </RoundIconButton>
+        <RoundIconButton aria-label="SOUND" aria-pressed={unit.sound} onClick={onSound} className="absolute top-2.5 right-2.5">
           {unit.sound
             ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
             : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
-        </Button>
-        <Button aria-label="NOTES" aria-pressed={unit.notes} aria-controls={`${p}-notes`} onClick={() => set({ notes: !unit.notes })} className={`${ROUND} bottom-2.5 left-2.5`}>
+        </RoundIconButton>
+        <RoundIconButton aria-label="NOTES" aria-pressed={unit.notes} aria-controls={`${p}-notes`} onClick={() => set({ notes: !unit.notes })} className="absolute bottom-2.5 left-2.5">
           <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
-        </Button>
+        </RoundIconButton>
         {/* the parameter rows; their state lives in the unit record, so values survive the popover closing */}
         <Popover onOpenChange={setSettingsOpen}>
           <PopoverTrigger asChild>
-            <Button aria-label="SETTINGS" className={`${ROUND} right-2.5 bottom-2.5 data-[state=open]:bg-foreground data-[state=open]:text-background`}>
+            <RoundIconButton aria-label="SETTINGS" className="absolute right-2.5 bottom-2.5 data-[state=open]:bg-foreground data-[state=open]:text-background">
               <Settings2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
-            </Button>
+            </RoundIconButton>
           </PopoverTrigger>
-          <PopoverContent aria-label={`SETTINGS ${name}`} style={ink}>
-            <InkContext.Provider value={ink}>
+          <PopoverContent aria-label={`SETTINGS ${name}`}>
             <div className="grid gap-3.5">
               <Param id={`${p}-p-inst`} label="INSTRUMENT" value={furin ? "ONE NOTE" : `${unit.tubes} TUBES`}>
                 <ParamSelect id={`${p}-p-inst`} value={unit.instrument} display={INSTRUMENT_TEXT[unit.instrument]} onChange={v => set({ instrument: v as E.Instrument })}>
@@ -440,16 +414,16 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
               </Param>
               {!furin && (
                 <Param id={`${p}-p-scale`} label="SCALE" value={scale.map(s => "+" + s).join(" ").replace(/\+0/, "0")}>
-                  <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup contentStyle={ink} onChange={v => set({ scale: v })} />
+                  <SearchSelect id={`${p}-p-scale`} value={unit.scale} display={unit.scale} groups={SCALE_OPTIONS} byGroup onChange={v => set({ scale: v })} />
                 </Param>
               )}
               <Param id={`${p}-p-voice`} label="SOUND" value={voiceTag}>
                 {/* a new sound starts with no patch: an external synth on its INIT */}
-                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} contentStyle={ink} onChange={v => { if (v !== voice) set({ voice: v, patch: null }); }} />
+                <SearchSelect id={`${p}-p-voice`} value={voice} display={voiceText} groups={groups} onChange={v => { if (v !== voice) set({ voice: v, patch: null }); }} />
               </Param>
               {ext && (
                 <Param id={`${p}-p-patch`} label="PATCH" value={patchText}>
-                  <PatchSelect id={`${p}-p-patch`} synth={ext} value={unit.patch} display={patchText} contentStyle={ink}
+                  <PatchSelect id={`${p}-p-patch`} synth={ext} value={unit.patch} display={patchText}
                     onPick={(patch, patchName) => { if (patch) setPatchName({ id: patch, name: patchName }); set({ patch }); }} />
                 </Param>
               )}
@@ -475,29 +449,18 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
               </Param>
               {count > 1 && <div className={ROW}><Button onClick={() => onRemove(id)}>REMOVE</Button></div>}
             </div>
-            </InkContext.Provider>
           </PopoverContent>
         </Popover>
       </div>
       {/* tube notes drawer: hidden until NOTES is on, then shown flush under the drawing, sharing its bottom border */}
       <div id={`${p}-notes`} hidden={!unit.notes}>
-        <div role="group" aria-label="TUBES" className="tubes grid max-w-full bg-background border border-t-0 border-foreground tabular-nums *:cursor-pointer *:border-l *:border-foreground *:py-2 *:text-center *:text-[10px] *:leading-[1.3] *:outline-none *:select-none *:first:border-l-0 *:hover:bg-foreground *:hover:text-background *:focus-visible:outline-1 *:focus-visible:-outline-offset-4 *:focus-visible:outline-dashed *:focus-visible:outline-current [&_b]:block [&_b]:text-[13px]" style={{ width: canvasPx + 2, gridTemplateColumns: `repeat(${furin ? 1 : unit.tubes}, minmax(0, 1fr))` }}>
-          {(furin ? [0] : scale).map((s, i) => {
-            const m = E.foldNote(unit.root + s);
-            return (
-              // each pad strikes its tube: on pointer down like the drawing, or Enter/Space (click with no pointer)
-              <button type="button" key={i} ref={el => { cellRefs.current[i] = el; }}
-                onPointerDown={() => chime.strikeTube(i)} onClick={e => { if (!e.detail) chime.strikeTube(i); }}>
-                <b>{E.noteName(m)}</b>{Math.round(E.mtof(m))}
-              </button>
-            );
-          })}
-        </div>
+        <TubePads chime={chime} root={unit.root} notes={furin ? [0] : scale} width={canvasPx + 2} />
         {/* what the pads play: the voice (no program number; an external synth with its patch) and the scale, or FURIN BELL */}
         <p className="m-0 max-w-full truncate border border-t-0 border-foreground bg-background px-2 py-1 text-[10px] leading-[1.3]" style={{ width: canvasPx + 2 }}>
           {voiceItem.name}{ext && ` · ${patchText}`} · {furin ? "FURIN BELL" : unit.scale}
         </p>
       </div>
+      </InkContext.Provider>
     </motion.section>
   );
 });
@@ -864,8 +827,12 @@ export default function Chime() {
             </div>
             {menuTab === "colophon" && (
               <ul role="tabpanel" id="menu-panel-colophon" aria-labelledby="menu-tab-colophon" className="m-0 grid list-none content-start p-0">
+                <li className="grid gap-1 py-2 pt-0">
+                  <TypeCredit className={`w-fit text-[11px] tracking-[.08em] ${FOOT_LINK}`} />
+                  <p className="m-0 max-w-[60ch] text-[11px]">Chime is set in Knif Mono, licensed from the foundry A is for fonts.</p>
+                </li>
                 {COLOPHON.map(c => (
-                  <li key={c.url} className="grid gap-1 border-t border-dashed border-foreground py-2 first:border-t-0 first:pt-0">
+                  <li key={c.url} className="grid gap-1 border-t border-dashed border-foreground py-2">
                     <a href={c.url} target="_blank" rel="noreferrer" className={`w-fit text-[11px] tracking-[.08em] ${FOOT_LINK}`}>{c.name}</a>
                     <p className="m-0 max-w-[60ch] text-[11px]">{c.text}</p>
                   </li>

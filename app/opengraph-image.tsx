@@ -6,10 +6,11 @@ export const alt = "chime";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// og-head.png is a 1-bit bitmap, drawn at its own size so it isn't resampled.
+// og-head.png is a 1-bit bitmap, drawn at its own size so it isn't resampled. Knif Mono comes from the design system's
+// tokens package (a direct dependency, so pnpm links it at the top of node_modules); the card is drawn at build time.
 export default async function Image() {
   const [font, head] = await Promise.all([
-    readFile(join(process.cwd(), "app/fonts/AA_Knif-mono.woff")),
+    readFile(join(process.cwd(), "node_modules/@dblodorn/sound-tokens/dist/fonts/AA_Knif-mono.woff")),
     readFile(join(process.cwd(), "app/og-head.png")),
   ]);
   return new ImageResponse(

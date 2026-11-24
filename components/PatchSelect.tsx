@@ -9,7 +9,7 @@ import { fetchQuery, graphql } from "relay-runtime";
 import { relayEnvironment } from "../lib/relay/environment";
 import { rememberName } from "../lib/patches";
 import type { ExternalSynth } from "../lib/synths";
-import { SearchSelect, type SearchFooter, type SearchOption } from "@/components/ui/search-select";
+import { SearchSelect, type SearchFooter, type SearchOption } from "@dblodorn/sound-ui";
 import type { PatchSelectVzQuery, PatchSelectVzQuery$data } from "./__generated__/PatchSelectVzQuery.graphql";
 import type { PatchSelectDx7Query, PatchSelectDx7Query$data } from "./__generated__/PatchSelectDx7Query.graphql";
 
@@ -55,9 +55,9 @@ const LISTS: Record<string, (search: string, after: string | null) => Promise<Pa
 const lastLists = new Map<string, Page>();
 const nameOf = (name: string) => name.toUpperCase() || "UNTITLED";
 
-export default function PatchSelect({ id, synth, value, display, onPick, contentStyle }: {
+export default function PatchSelect({ id, synth, value, display, onPick }: {
   id: string; synth: ExternalSynth; value: string | null; display: React.ReactNode;
-  onPick: (patch: string | null, name: string) => void; contentStyle?: React.CSSProperties;
+  onPick: (patch: string | null, name: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState<Page>(() => lastLists.get(`${synth.id}:`) ?? { items: [], next: null });
@@ -107,7 +107,7 @@ export default function PatchSelect({ id, synth, value, display, onPick, content
 
   return (
     <SearchSelect id={id} value={value ?? INIT} display={display} groups={[{ label: "", items: options }]} filter={false}
-      onQueryChange={onQueryChange} maxLength={synth.nameLength} footer={footer} contentStyle={contentStyle}
+      onQueryChange={onQueryChange} maxLength={synth.nameLength} footer={footer}
       onChange={v => {
         if (v === INIT) { onPick(null, synth.initName); return; }
         const name = nameOf(page.items.find(p => p.id === v)?.name ?? "");
