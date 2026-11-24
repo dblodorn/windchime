@@ -374,6 +374,21 @@ type DmbkSoundChimeCompositionEdge {
   node: ChimeComposition!
 }
 
+input DmbkSoundDeleteDx7BankInput {
+  clientMutationId: ID
+
+  """The device key that saved the bank."""
+  creatorKey: String!
+  id: ID!
+}
+
+type DmbkSoundDeleteDx7BankPayload {
+  clientMutationId: ID
+
+  """The deleted bank, for `@deleteRecord`."""
+  deletedDx7BankId: ID!
+}
+
 input DmbkSoundDeleteDx7VoiceInput {
   clientMutationId: ID
 
@@ -387,6 +402,21 @@ type DmbkSoundDeleteDx7VoicePayload {
 
   """The deleted voice, for `@deleteRecord`."""
   deletedDx7VoiceId: ID!
+}
+
+input DmbkSoundDeleteJuno60VoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the patch."""
+  creatorKey: String!
+  id: ID!
+}
+
+type DmbkSoundDeleteJuno60VoicePayload {
+  clientMutationId: ID
+
+  """The deleted patch, for `@deleteRecord`."""
+  deletedJuno60VoiceId: ID!
 }
 
 input DmbkSoundDeleteVzVoiceInput {
@@ -404,10 +434,22 @@ type DmbkSoundDeleteVzVoicePayload {
   deletedVzVoiceId: ID!
 }
 
+"""A bank with its cursor in the `dmbkSoundDx7Banks` ordering."""
+type DmbkSoundDx7BankEdge {
+  cursor: String!
+  node: Dx7Bank!
+}
+
 """A voice with its cursor in the `dmbkSoundDx7Voices` ordering."""
 type DmbkSoundDx7VoiceEdge {
   cursor: String!
   node: Dx7Voice!
+}
+
+"""A patch with its cursor in the `dmbkSoundJuno60Voices` ordering."""
+type DmbkSoundJuno60VoiceEdge {
+  cursor: String!
+  node: Juno60Voice!
 }
 
 input DmbkSoundSaveChimeCompositionInput {
@@ -422,6 +464,30 @@ type DmbkSoundSaveChimeCompositionPayload {
   chimeCompositionEdge: DmbkSoundChimeCompositionEdge!
   clientMutationId: ID
   created: Boolean!
+}
+
+input DmbkSoundSaveDx7BankInput {
+  clientMutationId: ID
+
+  """
+  The saving browser's device key (32 random bytes, base64url). Only its hash is stored.
+  """
+  creatorKey: String!
+
+  """The bank's name, 1 to 20 printable ASCII characters."""
+  name: String!
+
+  """
+  Exactly 32, in cartridge order: a Dx7Voice global ID, or null for an empty slot.
+  """
+  slots: [String]!
+}
+
+type DmbkSoundSaveDx7BankPayload {
+  clientMutationId: ID
+  created: Boolean!
+  dx7Bank: Dx7Bank!
+  dx7BankEdge: DmbkSoundDx7BankEdge!
 }
 
 input DmbkSoundSaveDx7VoiceInput {
@@ -443,6 +509,27 @@ type DmbkSoundSaveDx7VoicePayload {
   created: Boolean!
   dx7Voice: Dx7Voice!
   dx7VoiceEdge: DmbkSoundDx7VoiceEdge!
+}
+
+input DmbkSoundSaveJuno60VoiceInput {
+  clientMutationId: ID
+
+  """
+  The saving browser's device key (32 random bytes, base64url). Only its hash is stored.
+  """
+  creatorKey: String!
+
+  """
+  The 42 patch bytes (the juno60 editor's layout) as base64 (56 characters). The name is read from them.
+  """
+  data: String!
+}
+
+type DmbkSoundSaveJuno60VoicePayload {
+  clientMutationId: ID
+  created: Boolean!
+  juno60Voice: Juno60Voice!
+  juno60VoiceEdge: DmbkSoundJuno60VoiceEdge!
 }
 
 input DmbkSoundSaveVzVoiceInput {
@@ -477,6 +564,17 @@ type DmbkSoundSetChimeCompositionHiddenPayload {
   clientMutationId: ID
 }
 
+input DmbkSoundSetDx7BankHiddenInput {
+  clientMutationId: ID
+  hidden: Boolean!
+  id: ID!
+}
+
+type DmbkSoundSetDx7BankHiddenPayload {
+  clientMutationId: ID
+  dx7Bank: Dx7Bank!
+}
+
 input DmbkSoundSetDx7VoiceHiddenInput {
   clientMutationId: ID
   hidden: Boolean!
@@ -488,6 +586,17 @@ type DmbkSoundSetDx7VoiceHiddenPayload {
   dx7Voice: Dx7Voice!
 }
 
+input DmbkSoundSetJuno60VoiceHiddenInput {
+  clientMutationId: ID
+  hidden: Boolean!
+  id: ID!
+}
+
+type DmbkSoundSetJuno60VoiceHiddenPayload {
+  clientMutationId: ID
+  juno60Voice: Juno60Voice!
+}
+
 input DmbkSoundSetVzVoiceHiddenInput {
   clientMutationId: ID
   hidden: Boolean!
@@ -497,6 +606,25 @@ input DmbkSoundSetVzVoiceHiddenInput {
 type DmbkSoundSetVzVoiceHiddenPayload {
   clientMutationId: ID
   vzVoice: VzVoice!
+}
+
+input DmbkSoundUpdateDx7BankInput {
+  clientMutationId: ID
+
+  """The device key that saved the bank."""
+  creatorKey: String!
+  id: ID!
+  name: String!
+
+  """
+  Exactly 32, in cartridge order: a Dx7Voice global ID, or null for an empty slot.
+  """
+  slots: [String]!
+}
+
+type DmbkSoundUpdateDx7BankPayload {
+  clientMutationId: ID
+  dx7Bank: Dx7Bank!
 }
 
 input DmbkSoundUpdateDx7VoiceInput {
@@ -515,6 +643,24 @@ input DmbkSoundUpdateDx7VoiceInput {
 type DmbkSoundUpdateDx7VoicePayload {
   clientMutationId: ID
   dx7Voice: Dx7Voice!
+}
+
+input DmbkSoundUpdateJuno60VoiceInput {
+  clientMutationId: ID
+
+  """The device key that saved the patch."""
+  creatorKey: String!
+
+  """
+  The 42 patch bytes (the juno60 editor's layout) as base64 (56 characters). The name is read from them.
+  """
+  data: String!
+  id: ID!
+}
+
+type DmbkSoundUpdateJuno60VoicePayload {
+  clientMutationId: ID
+  juno60Voice: Juno60Voice!
 }
 
 input DmbkSoundUpdateVzVoiceInput {
@@ -539,6 +685,28 @@ type DmbkSoundUpdateVzVoicePayload {
 type DmbkSoundVzVoiceEdge {
   cursor: String!
   node: VzVoice!
+}
+
+"""
+A bank of 32 DX7 voice slots, like a cartridge, saved anonymously. Hidden ones are visible to admins only.
+"""
+type Dx7Bank implements Node {
+  """ISO-8601. The listing is ordered by this."""
+  createdAt: String!
+
+  """Admin only."""
+  hidden: Boolean
+  id: ID!
+  name: String!
+
+  """
+  Exactly 32, in cartridge order. A slot is null when empty, or when its voice has been deleted or hidden.
+  """
+  slots: [Dx7Voice]!
+  updatedAt: String!
+
+  """Whether this device key saved the bank."""
+  yours(creatorKey: String!): Boolean!
 }
 
 """
@@ -596,6 +764,34 @@ type GeneratedImage implements Node {
   """The DO Spaces copy when mirrored, otherwise the original fal.ai URL."""
   url: String!
   width: Int
+}
+
+"""
+A Roland Juno-60 patch saved anonymously. Hidden ones are visible to admins only.
+"""
+type Juno60Voice implements Node & SynthPatch {
+  """ISO-8601. The listing is ordered by this."""
+  createdAt: String!
+
+  """
+  The 42 patch bytes (the juno60 editor's layout) as base64 (56 characters).
+  """
+  data: String!
+
+  """Admin only."""
+  hidden: Boolean
+  id: ID!
+
+  """The patch's name, read from the bytes; may be empty."""
+  name: String!
+
+  """ISO-8601. Equals createdAt until the patch is updated."""
+  updatedAt: String!
+
+  """
+  Whether this device key saved the patch. The key is never stored, only compared by hash.
+  """
+  yours(creatorKey: String!): Boolean!
 }
 
 """One keyword in the vocabulary."""
@@ -809,9 +1005,19 @@ type Mutation {
   dmbkPhotosUpdatePhoto(input: DmbkPhotosUpdatePhotoInput!): DmbkPhotosUpdatePhotoPayload!
 
   """
+  Delete a bank for good (its voices stay). Only the device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundDeleteDx7Bank(input: DmbkSoundDeleteDx7BankInput!): DmbkSoundDeleteDx7BankPayload!
+
+  """
   Delete a voice for good. Only the device key that saved it may; others get FORBIDDEN.
   """
   dmbkSoundDeleteDx7Voice(input: DmbkSoundDeleteDx7VoiceInput!): DmbkSoundDeleteDx7VoicePayload!
+
+  """
+  Delete a patch for good. Only the device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundDeleteJuno60Voice(input: DmbkSoundDeleteJuno60VoiceInput!): DmbkSoundDeleteJuno60VoicePayload!
 
   """
   Delete a voice for good. Only the device key that saved it may; others get FORBIDDEN.
@@ -826,11 +1032,25 @@ type Mutation {
   dmbkSoundSaveChimeComposition(input: DmbkSoundSaveChimeCompositionInput!): DmbkSoundSaveChimeCompositionPayload!
 
   """
+  Save a bank anonymously under a device key. The same key saving an identical
+  bank again returns it with `created: false`. Every voice must be a saved,
+  visible DX7 voice (anyone's). Shares the DX7 write budget.
+  """
+  dmbkSoundSaveDx7Bank(input: DmbkSoundSaveDx7BankInput!): DmbkSoundSaveDx7BankPayload!
+
+  """
   Save a voice anonymously under a device key. The same key saving identical
   bytes again returns the stored voice with `created: false`. Obscene names are
   refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
   """
   dmbkSoundSaveDx7Voice(input: DmbkSoundSaveDx7VoiceInput!): DmbkSoundSaveDx7VoicePayload!
+
+  """
+  Save a patch anonymously under a device key. The same key saving identical
+  bytes again returns the stored patch with `created: false`. Obscene names are
+  refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
+  """
+  dmbkSoundSaveJuno60Voice(input: DmbkSoundSaveJuno60VoiceInput!): DmbkSoundSaveJuno60VoicePayload!
 
   """
   Save a voice anonymously under a device key. The same key saving identical
@@ -839,14 +1059,27 @@ type Mutation {
   """
   dmbkSoundSaveVzVoice(input: DmbkSoundSaveVzVoiceInput!): DmbkSoundSaveVzVoicePayload!
   dmbkSoundSetChimeCompositionHidden(input: DmbkSoundSetChimeCompositionHiddenInput!): DmbkSoundSetChimeCompositionHiddenPayload!
+  dmbkSoundSetDx7BankHidden(input: DmbkSoundSetDx7BankHiddenInput!): DmbkSoundSetDx7BankHiddenPayload!
   dmbkSoundSetDx7VoiceHidden(input: DmbkSoundSetDx7VoiceHiddenInput!): DmbkSoundSetDx7VoiceHiddenPayload!
+  dmbkSoundSetJuno60VoiceHidden(input: DmbkSoundSetJuno60VoiceHiddenInput!): DmbkSoundSetJuno60VoiceHiddenPayload!
   dmbkSoundSetVzVoiceHidden(input: DmbkSoundSetVzVoiceHiddenInput!): DmbkSoundSetVzVoiceHiddenPayload!
+
+  """
+  Replace a bank's name and slots. Only the device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundUpdateDx7Bank(input: DmbkSoundUpdateDx7BankInput!): DmbkSoundUpdateDx7BankPayload!
 
   """
   Replace a voice's bytes (renaming it too, since the name is in them). Only the
   device key that saved it may; others get FORBIDDEN.
   """
   dmbkSoundUpdateDx7Voice(input: DmbkSoundUpdateDx7VoiceInput!): DmbkSoundUpdateDx7VoicePayload!
+
+  """
+  Replace a patch's bytes (renaming it too, since the name is in them). Only the
+  device key that saved it may; others get FORBIDDEN.
+  """
+  dmbkSoundUpdateJuno60Voice(input: DmbkSoundUpdateJuno60VoiceInput!): DmbkSoundUpdateJuno60VoicePayload!
 
   """
   Replace a voice's bytes (renaming it too, since the name is in them). Only the
@@ -957,6 +1190,24 @@ type Query {
   dmbkSoundChimeCompositions(after: String, before: String, first: Int, last: Int): QueryDmbkSoundChimeCompositionsConnection!
 
   """
+  Saved DX7 banks that are not hidden, newest first (the factory ROM cards among
+  them). `creatorKey` narrows them to that device key's banks; `search` to names
+  containing the text.
+  """
+  dmbkSoundDx7Banks(
+    after: String
+    before: String
+
+    """A device key: only the banks it saved."""
+    creatorKey: String
+    first: Int
+    last: Int
+
+    """Names containing this text, ignoring case; at most 20 characters."""
+    search: String
+  ): QueryDmbkSoundDx7BanksConnection!
+
+  """
   Saved DX7 voices that are not hidden, newest first. `creatorKey` narrows them
   to that device key's voices; `search` to names containing the text.
   """
@@ -972,6 +1223,24 @@ type Query {
     """Names containing this text, ignoring case; at most 10 characters."""
     search: String
   ): QueryDmbkSoundDx7VoicesConnection!
+
+  """
+  Saved Juno-60 patches that are not hidden, newest first (Roland's factory
+  patches among them). `creatorKey` narrows them to that device key's patches;
+  `search` to names containing the text.
+  """
+  dmbkSoundJuno60Voices(
+    after: String
+    before: String
+
+    """A device key: only the patches it saved."""
+    creatorKey: String
+    first: Int
+    last: Int
+
+    """Names containing this text, ignoring case; at most 16 characters."""
+    search: String
+  ): QueryDmbkSoundJuno60VoicesConnection!
 
   """The latest cached SoundCloud playlists snapshot."""
   dmbkSoundPlaylists: SoundSnapshot
@@ -1027,6 +1296,16 @@ type QueryDmbkSoundChimeCompositionsConnectionEdge {
   node: ChimeComposition!
 }
 
+type QueryDmbkSoundDx7BanksConnection {
+  edges: [QueryDmbkSoundDx7BanksConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryDmbkSoundDx7BanksConnectionEdge {
+  cursor: String!
+  node: Dx7Bank!
+}
+
 type QueryDmbkSoundDx7VoicesConnection {
   edges: [QueryDmbkSoundDx7VoicesConnectionEdge!]!
   pageInfo: PageInfo!
@@ -1035,6 +1314,16 @@ type QueryDmbkSoundDx7VoicesConnection {
 type QueryDmbkSoundDx7VoicesConnectionEdge {
   cursor: String!
   node: Dx7Voice!
+}
+
+type QueryDmbkSoundJuno60VoicesConnection {
+  edges: [QueryDmbkSoundJuno60VoicesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryDmbkSoundJuno60VoicesConnectionEdge {
+  cursor: String!
+  node: Juno60Voice!
 }
 
 type QueryDmbkSoundVzVoicesConnection {
@@ -1115,7 +1404,7 @@ type SoundUser {
 }
 
 """
-A patch in an external synth's library: its display name and its bytes. VzVoice and Dx7Voice are ones.
+A patch in an external synth's library: its display name and its bytes. VzVoice, Dx7Voice and Juno60Voice are ones.
 """
 interface SynthPatch {
   """The patch's bytes as base64, in the synth's own format."""

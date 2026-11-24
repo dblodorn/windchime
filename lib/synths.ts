@@ -10,6 +10,7 @@
 // engine itself is a dynamic import, so its code (and its inlined worklet) loads only when a unit sounds with it.
 import { casioVzInit } from "./synths/casio-vz-init.ts";
 import { yamahaDx7Init } from "./synths/yamaha-dx7-init.ts";
+import { rolandJuno60Init } from "./synths/roland-juno60-init.ts";
 
 // the common surface every engine package's `createSynth` returns
 export interface SynthLike {
@@ -52,6 +53,16 @@ export const EXTERNAL_SYNTHS: readonly ExternalSynth[] = [
     patchBytes: 155,
     nameLength: 10,
     engine: () => import("@dblodorn/yamaha-dx7-engine"),
+  },
+  {
+    id: "roland-juno60",
+    name: "ROLAND JUNO-60",
+    initName: "INIT",
+    init: rolandJuno60Init,
+    patchType: "Juno60Voice",
+    patchBytes: 42,
+    nameLength: 16,
+    engine: () => import("@dblodorn/roland-juno60-engine"),
   },
 ];
 

@@ -12,6 +12,7 @@ import type { ExternalSynth } from "../lib/synths";
 import { SearchSelect, type SearchFooter, type SearchOption } from "@dblodorn/sound-ui";
 import type { PatchSelectVzQuery, PatchSelectVzQuery$data } from "./__generated__/PatchSelectVzQuery.graphql";
 import type { PatchSelectDx7Query, PatchSelectDx7Query$data } from "./__generated__/PatchSelectDx7Query.graphql";
+import type { PatchSelectJuno60Query, PatchSelectJuno60Query$data } from "./__generated__/PatchSelectJuno60Query.graphql";
 
 const PAGE = 20; // the API's page size; its limit on `search` is the synth's nameLength
 const INIT = "init"; // the INIT option's value (select values can't be empty)
@@ -33,11 +34,20 @@ const Dx7Query = graphql`
     }
   }
 `;
+const Juno60Query = graphql`
+  query PatchSelectJuno60Query($first: Int!, $after: String, $search: String) {
+    dmbkSoundJuno60Voices(first: $first, after: $after, search: $search) {
+      edges { node { id name } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
 type Page = { items: { id: string; name: string }[]; next: string | null };
 // a library node's global id is base64 of "<Type>:<id>"; a unit stores the 24-hex id
 const localId = (globalId: string) => { try { return atob(globalId).split(":")[1] ?? ""; } catch { return ""; } };
 // a library's connection → a page, the same for every synth
-type Connection = PatchSelectVzQuery$data["dmbkSoundVzVoices"] | PatchSelectDx7Query$data["dmbkSoundDx7Voices"];
+type Connection = PatchSelectVzQuery$data["dmbkSoundVzVoices"] | PatchSelectDx7Query$data["dmbkSoundDx7Voices"]
+  | PatchSelectJuno60Query$data["dmbkSoundJuno60Voices"];
 const toPage = (c: Connection): Page => ({
   items: c.edges.map(e => ({ id: localId(e.node.id), name: e.node.name.trim() })).filter(p => /^[0-9a-f]{24}$/.test(p.id)),
   next: c.pageInfo.hasNextPage ? c.pageInfo.endCursor ?? null : null,
@@ -49,6 +59,9 @@ const LISTS: Record<string, (search: string, after: string | null) => Promise<Pa
   "yamaha-dx7": (search, after) =>
     fetchQuery<PatchSelectDx7Query>(relayEnvironment(), Dx7Query, { first: PAGE, after, search: search || null }, { fetchPolicy: "network-only" })
       .toPromise().then(d => toPage(d!.dmbkSoundDx7Voices)),
+  "roland-juno60": (search, after) =>
+    fetchQuery<PatchSelectJuno60Query>(relayEnvironment(), Juno60Query, { first: PAGE, after, search: search || null }, { fetchPolicy: "network-only" })
+      .toPromise().then(d => toPage(d!.dmbkSoundJuno60Voices)),
 };
 
 // the last list per synth and search, so reopening shows it at once
