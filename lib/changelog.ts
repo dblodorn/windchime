@@ -14,6 +14,7 @@ export type ChangeType = keyof typeof TYPES;
 export interface Change { date: string; type: ChangeType; text: string }
 
 export const CHANGELOG: Change[] = [
+  { date: "2026-11-24", type: "ENHANCEMENT", text: "MENU → COLOPHON says what Chime is for and credits the work it draws on: the TimGM6mb soundfont, Tone.js, Design By Numbers and Sanzo Wada's colors." },
   { date: "2026-11-23", type: "ENHANCEMENT", text: "Chime is built from the sound design system, shared with the VZ-10M and DX7 editors: each note pad is named by its note and pitch (C5 523)." },
   { date: "2026-11-23", type: "ENHANCEMENT", text: "MENU → COLOPHON links the sound design system (soundsystem.dmbk.io)." },
   { date: "2026-11-22", type: "ENHANCEMENT", text: "MENU has a COLOPHON tab: the typeface (Knif Mono by A is for fonts) and the VZ-10M and DX7 editors." },

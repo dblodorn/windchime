@@ -164,11 +164,19 @@ function TubePads({ chime, root, notes, width }: { chime: E.Chime; root: number;
 
 // One chime: drawing, round buttons, settings popover and notes drawer, with its own engine instance.
 // MENU's COLOPHON: the typeface's credit (the package's TypeCredit), the design system, then the sound apps whose
-// voices windchime plays
+// voices windchime plays, then ABOUT and PRIOR WORK: every project or reference the code, the drawing or the sound
+// draws on, credited even where no code was copied (a change that adds a source adds its entry)
 const COLOPHON = [
   { name: "SOUND DESIGN SYSTEM", url: "https://soundsystem.dmbk.io/", text: "The controls, type and colors Chime shares with the VZ-10M and DX7 editors." },
   { name: "CASIO VZ-10M EDITOR", url: "https://vz10m.dmbk.io/", text: "Edit and share VZ-10M voices: the ones PATCH lists for the CASIO VZ-10M sound." },
   { name: "YAMAHA DX7 EDITOR", url: "https://dx7.dmbk.io/", text: "Edit and share DX7 voices and banks, Yamaha's factory ROM cards included: the ones PATCH lists for YAMAHA DX7." },
+] as const;
+const ABOUT = "Chime is a wind chime to listen to and play with, and a way to send its strikes to synthesizers over MIDI. The external synths (CASIO VZ-10M, YAMAHA DX7) are approximate emulations from their editors, stand-ins for the instruments.";
+const PRIOR_WORK = [
+  { name: "TIMGM6MB SOUNDFONT", url: "https://tracker.debian.org/timgm6mb-soundfont", text: "Tim Brechbill's General MIDI soundfont (GPL-2.0), from MuseScore 1.3: the GM sounds, played as it is." },
+  { name: "TONE.JS", url: "https://tonejs.github.io/", text: "Yotam Mann's Web Audio framework (MIT): the audio graph, filters and the FM voice." },
+  { name: "DESIGN BY NUMBERS", url: "https://dbn.media.mit.edu/", text: "John Maeda's book and language (MIT Media Lab, 1999): the single-pixel, line-only way the chime is drawn." },
+  { name: "A DICTIONARY OF COLOR COMBINATIONS", url: "https://sanzo-wada.dmbk.io/", text: "Sanzo Wada's colors (1933): each MIDI channel's ink and the changelog's badges." },
 ] as const;
 const MENU_TABS = [{ value: "compositions", label: "COMPOSITIONS" }, { value: "colophon", label: "COLOPHON" }] as const;
 type MenuTab = (typeof MENU_TABS)[number]["value"];
@@ -832,6 +840,15 @@ export default function Chime() {
                   <p className="m-0 max-w-[60ch] text-[11px]">Chime is set in Knif Mono, licensed from the foundry A is for fonts.</p>
                 </li>
                 {COLOPHON.map(c => (
+                  <li key={c.url} className="grid gap-1 border-t border-dashed border-foreground py-2">
+                    <a href={c.url} target="_blank" rel="noreferrer" className={`w-fit text-[11px] tracking-[.08em] ${FOOT_LINK}`}>{c.name}</a>
+                    <p className="m-0 max-w-[60ch] text-[11px]">{c.text}</p>
+                  </li>
+                ))}
+                <li><h3 className="m-0 pt-3 text-[10px] font-normal tracking-[.08em]">ABOUT</h3></li>
+                <li className="grid gap-1 border-t border-dashed border-foreground py-2"><p className="m-0 max-w-[60ch] text-[11px]">{ABOUT}</p></li>
+                <li><h3 className="m-0 pt-3 text-[10px] font-normal tracking-[.08em]">PRIOR WORK</h3></li>
+                {PRIOR_WORK.map(c => (
                   <li key={c.url} className="grid gap-1 border-t border-dashed border-foreground py-2">
                     <a href={c.url} target="_blank" rel="noreferrer" className={`w-fit text-[11px] tracking-[.08em] ${FOOT_LINK}`}>{c.name}</a>
                     <p className="m-0 max-w-[60ch] text-[11px]">{c.text}</p>
