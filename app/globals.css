@@ -1,108 +1,14 @@
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
-
-/* phones and tablets: every input is touch, none can hover. AUDIO and each unit's OUTPUT are hidden there; a
-   touchscreen laptop (or a tablet with a mouse) still has a pointer that hovers, so it keeps them. */
-@custom-variant touch (@media (any-hover: none) and (any-pointer: coarse));
-
-/* 1-bit theme: every shadcn token is pure black or pure white. No dark variant, no radius, no shadows.
-   Layout: 1-bit raster instrument on the left, Courier parameter sheet on the right; one column on phones. */
-:root {
-  --background: #ffffff;
-  --card: #ffffff;
-  --popover: #ffffff;
-  --primary-foreground: #ffffff;
-  --secondary: #ffffff;
-  --muted: #ffffff;
-  --accent-foreground: #ffffff;
-  --input: #ffffff;
-  --sidebar: #ffffff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent-foreground: #ffffff;
-  --foreground: #000000;
-  --card-foreground: #000000;
-  --popover-foreground: #000000;
-  --primary: #000000;
-  --secondary-foreground: #000000;
-  --muted-foreground: #000000;
-  --accent: #000000;
-  --destructive: #000000;
-  --border: #000000;
-  --ring: #000000;
-  --chart-1: #000000;
-  --chart-2: #000000;
-  --chart-3: #000000;
-  --chart-4: #000000;
-  --chart-5: #000000;
-  --sidebar-foreground: #000000;
-  --sidebar-primary: #000000;
-  --sidebar-accent: #000000;
-  --sidebar-border: #000000;
-  --sidebar-ring: #000000;
-  --radius: 0rem;
-  color-scheme: light;
-}
-
-@theme inline {
-  --font-sans: var(--font-ui), "Courier New", Courier, monospace;
-  --font-mono: var(--font-ui), "Courier New", Courier, monospace;
-  --font-heading: var(--font-ui), "Courier New", Courier, monospace;
-  --color-background: var(--background);
-  --color-card: var(--card);
-  --color-popover: var(--popover);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-muted: var(--muted);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-input: var(--input);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-foreground: var(--foreground);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --radius-xs: 0;
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-  --radius-3xl: 0;
-  --radius-4xl: 0;
-  --shadow-*: initial;
-  --inset-shadow-*: initial;
-  --drop-shadow-*: initial;
-  --text-shadow-*: initial;
-}
+@import "@dblodorn/sound-ui/styles.css"; /* the tokens (1-bit theme, no radius, no shadows, `touch:`) and the components */
+@import "@dblodorn/sound-tokens/fonts.css"; /* Knif Mono, licensed under A is for fonts' webfont EULA */
 
 @layer base {
   * {
     @apply border-border;
   }
-  html {
-    @apply font-sans;
-  }
   html,
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
   /* page padding lives on html: Radix's scroll lock rewrites body padding while a select is open */
   html {
@@ -110,14 +16,15 @@
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     /* bottom: room for the fixed MIDI button (44px tall, 16px from the edge) plus 16px of air */
     padding-block: max(20px, env(safe-area-inset-top, 0px)) calc(76px + env(safe-area-inset-bottom, 0px));
+    color-scheme: light;
   }
   body {
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: var(--sound-text-body);
+    line-height: var(--sound-leading-body);
   }
   :focus-visible {
-    outline: 1px dashed var(--foreground);
-    outline-offset: 3px;
+    outline: var(--sound-focus-width) dashed var(--sound-ring);
+    outline-offset: var(--sound-focus-offset);
   }
 }
 
@@ -130,21 +37,15 @@
     cursor: crosshair;
     max-width: 100%;
   }
-  /* dotted leader between a parameter's label and its value */
+  /* dotted leader between a parameter's label and its value (the app's own rows; the package's use Leader) */
   .lead {
     flex: 1;
-    border-bottom: 1px dotted var(--foreground);
+    border-bottom: var(--sound-stroke-width) dotted var(--sound-foreground);
     transform: translateY(-4px);
-  }
-  /* set by the strike handler for 140 ms */
-  .tubes .hit {
-    background: var(--foreground);
-    color: var(--background);
   }
   @media (prefers-reduced-motion: reduce) {
     * {
       scroll-behavior: auto;
     }
   }
-
 }

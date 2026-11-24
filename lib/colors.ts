@@ -24,21 +24,10 @@ export const CHANNEL_INKS: Ink[] = [
 
 export const inkOf = (channel: number): Ink => CHANNEL_INKS[channel - 1] ?? CHANNEL_INKS[0];
 
-// the ink mixed with white, `amount` of it (0..1) as an opaque hex: a faded unit's ink while another channel is focused
+// the ink mixed with white, `amount` of it (0..1) as an opaque hex: a faded unit's canvas ink while another channel is
+// focused (the rest of the unit gets the same mix from the package's InkScope tint)
 export function tint(hex: string, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
   const mix = (v: number) => Math.round(255 - (255 - v) * amount).toString(16).padStart(2, "0");
   return `#${mix(n >> 16)}${mix((n >> 8) & 255)}${mix(n & 255)}`;
-}
-
-// every black theme token (app/globals.css), so a unit's subtree, and its portaled popups, draw in the ink
-const TOKENS = ["--foreground", "--card-foreground", "--popover-foreground", "--primary", "--secondary-foreground",
-  "--muted-foreground", "--accent", "--destructive", "--border", "--ring"];
-// the theme's custom properties, and `color`
-export type InkStyle = Record<`--${string}` | "color", string>;
-const styles = new Map<string, InkStyle>();
-export function inkStyle(hex: string): InkStyle | undefined {
-  if (hex === "#000000") return undefined;
-  if (!styles.has(hex)) styles.set(hex, Object.fromEntries([...TOKENS.map(t => [t, hex]), ["color", hex]]));
-  return styles.get(hex);
 }
