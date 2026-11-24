@@ -167,11 +167,12 @@ function TubePads({ chime, root, notes, width }: { chime: E.Chime; root: number;
 // voices windchime plays, then ABOUT and PRIOR WORK: every project or reference the code, the drawing or the sound
 // draws on, credited even where no code was copied (a change that adds a source adds its entry)
 const COLOPHON = [
-  { name: "SOUND DESIGN SYSTEM", url: "https://soundsystem.dmbk.io/", text: "The controls, type and colors Chime shares with the VZ-10M and DX7 editors." },
+  { name: "SOUND DESIGN SYSTEM", url: "https://soundsystem.dmbk.io/", text: "The controls, type and colors Chime shares with the VZ-10M, DX7 and Juno-60 editors." },
   { name: "CASIO VZ-10M EDITOR", url: "https://vz10m.dmbk.io/", text: "Edit and share VZ-10M voices: the ones PATCH lists for the CASIO VZ-10M sound." },
   { name: "YAMAHA DX7 EDITOR", url: "https://dx7.dmbk.io/", text: "Edit and share DX7 voices and banks, Yamaha's factory ROM cards included: the ones PATCH lists for YAMAHA DX7." },
+  { name: "ROLAND JUNO-60 EDITOR", url: "https://juno60.dmbk.io/", text: "Edit and share Juno-60 patches, Roland's 56 factory patches included: the ones PATCH lists for ROLAND JUNO-60." },
 ] as const;
-const ABOUT = "Chime is a wind chime to listen to and play with, and a way to send its strikes to synthesizers over MIDI. The external synths (CASIO VZ-10M, YAMAHA DX7) are approximate emulations from their editors, stand-ins for the instruments.";
+const ABOUT = "Chime is a wind chime to listen to and play with, and a way to send its strikes to synthesizers over MIDI. The external synths (CASIO VZ-10M, YAMAHA DX7, ROLAND JUNO-60) are approximate emulations from their editors, stand-ins for the instruments.";
 const PRIOR_WORK = [
   { name: "TIMGM6MB SOUNDFONT", url: "https://tracker.debian.org/timgm6mb-soundfont", text: "Tim Brechbill's General MIDI soundfont (GPL-2.0), from MuseScore 1.3: the GM sounds, played as it is." },
   { name: "TONE.JS", url: "https://tonejs.github.io/", text: "Yotam Mann's Web Audio framework (MIT): the audio graph, filters and the FM voice." },

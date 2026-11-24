@@ -11,6 +11,9 @@ importers:
       '@dblodorn/casio-vz-engine':
         specifier: 0.1.0
         version: 0.1.0
+      '@dblodorn/roland-juno60-engine':
+        specifier: 0.1.0
+        version: 0.1.0
       '@dblodorn/sound-tokens':
         specifier: 0.1.0
         version: 0.1.0
@@ -161,6 +164,10 @@ packages:
 
   '@dblodorn/casio-vz-engine@0.1.0':
     resolution: {integrity: sha512-QB+ZK9UY/39z8f7vEmqxsa2CY/aeMKat2mTpnsHOhRzAuCaDbZpg5l3wWGuQonEDahEGbNz/mFjZqkCCrsNETQ==, tarball: https://npm.pkg.github.com/download/@dblodorn/casio-vz-engine/0.1.0/7ad75dbfd73d6cbc4836c0b0a299aba204726f75}
+    engines: {node: '>=22.18'}
+
+  '@dblodorn/roland-juno60-engine@0.1.0':
+    resolution: {integrity: sha512-vKaU2+09DKg4eb9oZdbX7vb/0pCl/7Get7J4OYTy5Uzbx6QPYQciW3UihQST7MFjj6DATLMGIBTKk7pQRwZ1yQ==, tarball: https://npm.pkg.github.com/download/@dblodorn/roland-juno60-engine/0.1.0/2c8b5bf7732a2bd60b84c3a0bc432447ef724e9e}
     engines: {node: '>=22.18'}
 
   '@dblodorn/sound-tokens@0.1.0':
@@ -1864,6 +1871,8 @@ snapshots:
     optional: true
 
   '@dblodorn/casio-vz-engine@0.1.0': {}
+
+  '@dblodorn/roland-juno60-engine@0.1.0': {}
 
   '@dblodorn/sound-tokens@0.1.0': {}
 
