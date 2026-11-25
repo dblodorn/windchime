@@ -253,7 +253,7 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
       .then(got => {
         if (!live) return;
         if (!got) { set({ patch: null }); return; }
-        chime.setPatch(got.bytes);
+        chime.setPatch(got.bytes, got.arpeggio);
         setPatchName({ id: patch, name: got.name.toUpperCase() || "UNTITLED" });
       })
       .catch(() => {});

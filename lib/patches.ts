@@ -4,6 +4,7 @@
 import { fetchQuery, graphql } from "relay-runtime";
 import { relayEnvironment } from "./relay/environment";
 import type { ExternalSynth } from "./synths";
+import type { Arpeggio } from "@dblodorn/roland-juno60-engine";
 import type { patchesQuery } from "./__generated__/patchesQuery.graphql";
 
 // Any synth's patch, through the SynthPatch interface every library type implements
@@ -11,11 +12,13 @@ const PatchQuery = graphql`
   query patchesQuery($id: ID!) {
     node(id: $id) {
       ... on SynthPatch { name data }
+      ... on Juno60Voice { arpeggio { version on mode range rate } }
     }
   }
 `;
 
-export interface Patch { name: string; bytes: Uint8Array }
+// `arpeggio`: a Juno-60 patch's arpeggiator settings, kept beside its bytes; null for none (off) and other synths
+export interface Patch { name: string; bytes: Uint8Array; arpeggio: Arpeggio | null }
 
 const fetched = new Map<string, Promise<Patch | null>>();
 const names = new Map<string, string>();
@@ -37,7 +40,9 @@ export function getPatch(synth: ExternalSynth, id: string): Promise<Patch | null
         const bytes = Uint8Array.from(atob(node.data), c => c.charCodeAt(0));
         if (bytes.length !== synth.patchBytes) return null;
         names.set(k, node.name.trim());
-        return { name: node.name.trim(), bytes };
+        // the engine checks the settings when they load (lib/engine.ts falls back to off)
+        const arpeggio = node.arpeggio ? ({ ...node.arpeggio } as Arpeggio) : null;
+        return { name: node.name.trim(), bytes, arpeggio };
       });
     p.catch(() => fetched.delete(k));
     fetched.set(k, p);
