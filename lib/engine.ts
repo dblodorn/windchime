@@ -2,7 +2,8 @@
 // Browser-only. Make a chime with createChime() and call its attach() inside an effect; every attached
 // chime is stepped and drawn by one shared loop and plays through one shared output stage.
 import type { Filter, FMSynth, PolySynth } from "tone";
-import { synthOf, type ExternalSynth, type SynthLike } from "./synths.ts";
+import { ARPEGGIO_OFF, synthOf, type ExternalSynth, type SynthLike } from "./synths.ts";
+import type { Arpeggio } from "@dblodorn/roland-juno60-engine";
 
 export const W = 200, H = 200;
 // scratch raster: each chime draws into it in turn, then presents it to its own canvas
@@ -614,9 +615,13 @@ function ensureSynth(ch: ChimeState) {
     .finally(() => { ch.xloading = null; });
 }
 // the chosen patch's bytes, or the synth's INIT while they haven't arrived (or don't load)
+// and, for a synth with an arpeggiator (the Juno-60), the patch's arpeggiator settings, else off
 function loadPatch(ch: ChimeState) {
   if (!ch.xsynth || !ch.ext) return;
   try { ch.xsynth.loadVoice(ch.patchBytes ?? ch.ext.init()); } catch (e) { ch.xsynth.loadVoice(ch.ext.init()); }
+  if (ch.xsynth.loadArpeggio) {
+    try { ch.xsynth.loadArpeggio(ch.patchArp ?? ARPEGGIO_OFF); } catch (e) { ch.xsynth.loadArpeggio(ARPEGGIO_OFF); }
+  }
 }
 function endExternalNotes(ch: ChimeState) {
   ch.xoff.forEach(t => clearTimeout(t));
@@ -846,7 +851,7 @@ interface ChimeState {
   // voice is null while a soundfont preset plays (sfPreset and sfRegions are set instead) or an external synth
   // does (ext, with its engine instance xsynth once loaded, the chosen patch's bytes and one note-off per note)
   voice: Voice | null; sfPreset: PresetHeader | null; sfRegions: Region[] | null; ext: ExternalSynth | null;
-  xsynth: SynthLike | null; xloading: Promise<void> | null; patchBytes: Uint8Array | null; xoff: Map<number, ReturnType<typeof setTimeout>>;
+  xsynth: SynthLike | null; xloading: Promise<void> | null; patchBytes: Uint8Array | null; patchArp: Arpeggio | null; xoff: Map<number, ReturnType<typeof setTimeout>>;
   sound: boolean; graph: Graph | null; ctx2d: CanvasRenderingContext2D | null; img: ImageData | null;
   rec: Recording | null; ink: Rgb; hit: HitFn;
 }
@@ -868,7 +873,7 @@ function tick(now: number) {
 export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?: number } = {}) {
   const ch: ChimeState = {
     P: defaultParams(), sim: makeSim(seed), streaks: makeStreaks(), acc: 0,
-    voice: VOICES[0], sfPreset: null, sfRegions: null, ext: null, xsynth: null, xloading: null, patchBytes: null, xoff: new Map(),
+    voice: VOICES[0], sfPreset: null, sfRegions: null, ext: null, xsynth: null, xloading: null, patchBytes: null, patchArp: null, xoff: new Map(),
     sound: false, graph: null, ctx2d: null, img: null, rec: null, ink: [0, 0, 0], hit: () => {},
   };
   const listeners = new Set<(i: number, vel: number) => void>();
@@ -914,14 +919,17 @@ export function createChime({ seed = (Math.random() * 2 ** 32) >>> 0 }: { seed?:
     chooseVoice(value: string | null) {
       const v = voiceFor(value);
       if (!v) return false;
-      if (v.ext !== ch.ext) { disposeSynth(ch); ch.patchBytes = null; }
+      if (v.ext !== ch.ext) { disposeSynth(ch); ch.patchBytes = null; ch.patchArp = null; }
       Object.assign(ch, v);
       if (ch.sound) { loadSamples(ch.sfRegions); ensureSynth(ch); }
       return true;
     },
-    // an external synth's patch bytes (null: its INIT); notes already sounding keep the patch they started with
-    setPatch(bytes: Uint8Array | null) {
+    // an external synth's patch bytes (null: its INIT); notes already sounding keep the patch they started with.
+    // `arpeggio`: a Juno-60 patch's arpeggiator settings (null: off); with it on, the tubes still ringing (each strike
+    // holds its note for DECAY) are the notes it arpeggiates.
+    setPatch(bytes: Uint8Array | null, arpeggio: Arpeggio | null = null) {
       ch.patchBytes = bytes;
+      ch.patchArp = arpeggio;
       loadPatch(ch);
     },
     setParams(p: Partial<Params>) {

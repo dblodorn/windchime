@@ -512,6 +512,10 @@ type DmbkSoundSaveDx7VoicePayload {
 }
 
 input DmbkSoundSaveJuno60VoiceInput {
+  """
+  The arpeggiator settings to keep beside the bytes; omitted or the default means none (the arpeggiator off).
+  """
+  arpeggio: Juno60ArpeggioInput
   clientMutationId: ID
 
   """
@@ -646,6 +650,11 @@ type DmbkSoundUpdateDx7VoicePayload {
 }
 
 input DmbkSoundUpdateJuno60VoiceInput {
+  """
+  The arpeggiator settings to keep beside the bytes; omitted or the default
+  means none (the arpeggiator off). Omitted removes the stored settings.
+  """
+  arpeggio: Juno60ArpeggioInput
   clientMutationId: ID
 
   """The device key that saved the patch."""
@@ -767,9 +776,57 @@ type GeneratedImage implements Node {
 }
 
 """
+A patch's arpeggiator settings, kept beside its 42 bytes (never inside them). HOLD is a performance switch and isn't saved.
+"""
+type Juno60Arpeggio {
+  mode: Juno60ArpeggioMode!
+  on: Boolean!
+
+  """Octaves: 1, 2 or 3."""
+  range: Int!
+
+  """0–127, read on the panel's 0–10 scale."""
+  rate: Int!
+
+  """The settings version: 1."""
+  version: Int!
+}
+
+"""
+Arpeggiator settings to keep with a patch. Settings equal to the default (off, UP, range 1, rate 64) are stored as none.
+"""
+input Juno60ArpeggioInput {
+  mode: Juno60ArpeggioMode!
+  on: Boolean!
+
+  """Octaves: 1, 2 or 3."""
+  range: Int!
+
+  """0–127."""
+  rate: Int!
+
+  """1."""
+  version: Int!
+}
+
+"""
+The arpeggio's direction: UP, DOWN, or UP_DOWN (up then down, the top and bottom notes not repeated).
+"""
+enum Juno60ArpeggioMode {
+  DOWN
+  UP
+  UP_DOWN
+}
+
+"""
 A Roland Juno-60 patch saved anonymously. Hidden ones are visible to admins only.
 """
 type Juno60Voice implements Node & SynthPatch {
+  """
+  The arpeggiator settings kept with the patch; null means the arpeggiator is off.
+  """
+  arpeggio: Juno60Arpeggio
+
   """ISO-8601. The listing is ordered by this."""
   createdAt: String!
 
@@ -1047,8 +1104,9 @@ type Mutation {
 
   """
   Save a patch anonymously under a device key. The same key saving identical
-  bytes again returns the stored patch with `created: false`. Obscene names are
-  refused (BAD_USER_INPUT). Rate-limited per visitor (`X-End-User-IP`) and per client.
+  bytes and arpeggio again returns the stored patch with `created: false`.
+  Obscene names are refused (BAD_USER_INPUT). Rate-limited per visitor
+  (`X-End-User-IP`) and per client.
   """
   dmbkSoundSaveJuno60Voice(input: DmbkSoundSaveJuno60VoiceInput!): DmbkSoundSaveJuno60VoicePayload!
 

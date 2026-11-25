@@ -11,6 +11,7 @@
 import { casioVzInit } from "./synths/casio-vz-init.ts";
 import { yamahaDx7Init } from "./synths/yamaha-dx7-init.ts";
 import { rolandJuno60Init } from "./synths/roland-juno60-init.ts";
+import type { Arpeggio } from "@dblodorn/roland-juno60-engine";
 
 // the common surface every engine package's `createSynth` returns
 export interface SynthLike {
@@ -20,7 +21,13 @@ export interface SynthLike {
   noteOff(note: number): void;
   allNotesOff(): void;
   dispose(): void;
+  // Juno-60 only: its arpeggiator settings, which travel beside a patch's bytes (never in them)
+  loadArpeggio?(settings: Arpeggio): void;
 }
+
+// what a patch without arpeggiator settings plays with: the arpeggiator off (the engine's DEFAULT_ARPEGGIO, written
+// out so this module doesn't load the engine)
+export const ARPEGGIO_OFF: Arpeggio = { version: 1, on: false, mode: "UP", range: 1, rate: 64 };
 
 export interface ExternalSynth {
   id: string; // the voice is "x:" + id
