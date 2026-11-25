@@ -148,6 +148,12 @@ type ChimeComposition implements Node {
 
   """In page order."""
   units: [ChimeUnit!]!
+
+  """
+  True when this device key created the composition; false for any other or
+  malformed key, and for compositions saved without one.
+  """
+  yours(creatorKey: String!): Boolean!
 }
 
 """
@@ -454,6 +460,12 @@ type DmbkSoundJuno60VoiceEdge {
 
 input DmbkSoundSaveChimeCompositionInput {
   clientMutationId: ID
+
+  """
+  The saving browser's device key (32 random bytes, base64url). Only its hash is
+  stored. Marks a newly created composition as that key's; a duplicate keeps its owner.
+  """
+  creatorKey: String
 
   """The chimes in page order, 1–16."""
   units: [ChimeUnitInput!]!
@@ -1244,8 +1256,19 @@ type Query {
   """The photo keyword vocabulary, most used first."""
   dmbkPhotosKeywords: [Keyword!]!
 
-  """Saved windchime compositions that are not hidden, newest first."""
-  dmbkSoundChimeCompositions(after: String, before: String, first: Int, last: Int): QueryDmbkSoundChimeCompositionsConnection!
+  """
+  Saved windchime compositions that are not hidden, newest first. `creatorKey`
+  narrows them to the compositions that device key created.
+  """
+  dmbkSoundChimeCompositions(
+    after: String
+    before: String
+
+    """A device key: only the compositions it created."""
+    creatorKey: String
+    first: Int
+    last: Int
+  ): QueryDmbkSoundChimeCompositionsConnection!
 
   """
   Saved DX7 banks that are not hidden, newest first (the factory ROM cards among

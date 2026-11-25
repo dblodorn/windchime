@@ -258,3 +258,14 @@ export function codeFromHash(hash: string | null | undefined) {
   const m = /^#?c=([A-Za-z0-9_-]+)$/.exec(hash || "");
   return m ? m[1] : null;
 }
+
+// A saved composition's address is /c/<its 24-hex id>; the API names it by its global id, base64 of
+// "ChimeComposition:<hex>". These convert at the edge, so the address stays short and type-free.
+export const COMPOSITION_ID = /^[0-9a-f]{24}$/;
+export const compositionGlobalId = (hex: string) => btoa("ChimeComposition:" + hex);
+export function compositionHex(globalId: string): string | null {
+  let s: string;
+  try { s = atob(globalId); } catch (e) { return null; }
+  const m = /^ChimeComposition:([0-9a-f]{24})$/.exec(s);
+  return m ? m[1] : null;
+}
