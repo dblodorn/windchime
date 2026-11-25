@@ -14,6 +14,7 @@ export type ChangeType = keyof typeof TYPES;
 export interface Change { date: string; type: ChangeType; text: string }
 
 export const CHANGELOG: Change[] = [
+  { date: "2026-11-24", type: "FEATURE", text: "Every saved composition has its own address (chime.dmbk.io/c/…), and SHARE saves the composition and copies that address. COMPOSITIONS → YOURS lists the ones you saved or shared from this browser." },
   { date: "2026-11-24", type: "FEATURE", text: "ROLAND JUNO-60: a patch saved with its arpeggiator on arpeggiates the tubes still ringing, as set in the Juno-60 editor." },
   { date: "2026-11-24", type: "FEATURE", text: "Roland Juno-60 as a sound, with a PATCH picker of the patches shared from the Juno-60 editor (juno60.dmbk.io), Roland's factory patches included." },
   { date: "2026-11-24", type: "ENHANCEMENT", text: "MENU → COLOPHON says what Chime is for and credits the work it draws on: the TimGM6mb soundfont, Tone.js, Design By Numbers and Sanzo Wada's colors." },

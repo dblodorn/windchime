@@ -142,6 +142,9 @@ function loadUnits() {
   const pos = store.get<{ x?: unknown; y?: unknown } | null>("pos", null), ch = store.get<unknown>("midiCh", null);
   return [readUnit({ ...defaultUnit(), x: pos && pos.x, y: pos && pos.y, channel: ch }, new Set())];
 }
+// What the address compares (see `shown` in Chime): the share-link encoding with the stacking order left out, since
+// any press on a unit brings it to the front and that alone shouldn't take the address away.
+const addressCode = (us: readonly PageUnit[]) => Sh.encode(us.map((u, i) => ({ ...u, z: i })));
 const lowestFreeChannel = (units: PageUnit[]) => CHANNELS.find(c => !units.some(u => u.channel === c)) || 1;
 
 // The notes drawer's pads (the package's NotePads, named "C5 523"): one per tube, or the furin's root alone. Each
@@ -474,10 +477,19 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
   );
 });
 
-export default function Chime() {
+// The page. At /c/<id> the server passes the saved composition (`initial`), which it renders and which replaces the
+// stored units; `notice` is a one-line message (COMPOSITION NOT FOUND, COULD NOT OPEN) for an address that didn't load.
+export default function Chime({ initial, notice: noticeText }: { initial?: { id: string; units: Sh.UnitFields[] }; notice?: string } = {}) {
   const mainRef = useRef<HTMLElement>(null);
-  // the server renders one default unit; the stored list replaces it on mount
-  const [units, setUnits] = useState<PageUnit[]>(() => [defaultUnit()]);
+  // the server renders one default unit, or the composition the address names (with fixed ids, so it hydrates);
+  // otherwise the stored list replaces it on mount
+  const [units, setUnits] = useState<PageUnit[]>(() => (initial ? freshUnits(initial.units.map((u, i) => ({ ...u, id: "uc" + i }))) : [defaultUnit()]));
+  // The composition the address names (/c/<id>), with its share-link encoding when it loaded: the address keeps it
+  // until the units first differ from it, then goes back to "/", so a reload shows the edits and the address never
+  // names a composition the page isn't showing. The encoding leaves out SOUND, OUTPUT and the rest that is never saved,
+  // and the stacking order (addressCode).
+  const [shown, setShown] = useState<{ id: string; code: string } | null>(null);
+  const [notice, setNotice] = useState(noticeText ?? "");
   const usedChannels = useMemo(() => new Set(units.map(u => u.channel)), [units]);
   // channel focus (the lower-left strip): a channel number or null, never stored. `focused` drops a focus whose
   // channel is gone or that the hidden strip (one channel) can no longer show, and the effect forgets it
@@ -489,6 +501,7 @@ export default function Chime() {
   const loaded = useRef(false);
   const ownHash = useRef<string | null>(null);
   const [shared, setShared] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [fontsVersion, setFontsVersion] = useState(0);
 
   // MIDI out
@@ -525,7 +538,11 @@ export default function Chime() {
       history.replaceState(null, "", location.pathname + location.search);
       return us;
     };
-    setUnits(fromLink() || loadUnits());
+    if (initial) {
+      // the address names the composition: it wins over a fragment, and the save effect writes it over the stored units
+      if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+      setShown({ id: initial.id, code: addressCode(unitsRef.current) });
+    } else setUnits(fromLink() || loadUnits());
     loaded.current = true;
     // a link pasted into an open tab
     const onHash = () => {
@@ -544,6 +561,17 @@ export default function Chime() {
     store.set("units", { v: 1, units: unitsRef.current.map(({ sound, soundQuiet, ...u }) => u) });
     store.remove("pos"); store.remove("midiCh");
   }, []);
+  // the first change to what a composition holds takes the address back to "/" (see `shown`)
+  useEffect(() => {
+    if (!shown || addressCode(units) === shown.code) return;
+    history.replaceState(null, "", "/");
+    setShown(null);
+  }, [units, shown]);
+  // a composition that is now the page's (loaded from the list, or just shared): the address names it
+  const showComposition = useCallback((id: string, us: PageUnit[]) => {
+    setShown({ id, code: addressCode(us) });
+    history.replaceState(null, "", "/c/" + id);
+  }, []);
   useEffect(() => {
     if (!loaded.current) return;
     const t = setTimeout(save, 250);
@@ -561,16 +589,17 @@ export default function Chime() {
   const reset = useCallback(() => replaceComposition([defaultUnit(newId())]), [replaceComposition]);
   // A saved composition is picked with a tap, so its units start sounding: audio starts inside the click, the units
   // load muted at once, and the ones still on the page turn on when audio is running (quietly: no arpeggio each)
-  const openSaved = useCallback((records: Sh.UnitFields[]) => {
+  const openSaved = useCallback((records: Sh.UnitFields[], id: string) => {
     const started = E.startAudio();
     const us = freshUnits(records), ids = new Set(us.map(u => u.id));
     replaceComposition(us);
+    showComposition(id, us);
     setMenuOpen(false);
     started.then(
       () => setUnits(cur => cur.map(u => (ids.has(u.id) ? { ...u, sound: true, soundQuiet: true } : u))),
       err => console.error("could not start audio", err),
     );
-  }, [replaceComposition]);
+  }, [replaceComposition, showComposition]);
   const getUnits = useCallback(() => unitsRef.current, []);
 
   const change = useCallback((id: string, patch: UnitPatch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
@@ -611,6 +640,7 @@ export default function Chime() {
   // any press inside a unit brings it to the front; a press on a faded unit also ends channel focus
   const pressUnit = useCallback((id: string) => {
     front(id);
+    setNotice("");
     const f = focusRef.current, u = unitsRef.current.find(v => v.id === id);
     if (f != null && u && u.channel !== f) setFocus(null);
   }, [front]);
@@ -743,17 +773,42 @@ export default function Chime() {
   const midiReady = midi.connected;
   const shareTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(shareTimer.current), []);
+  // SHARE saves the composition (Compositions.tsx, loaded now if it isn't yet) and copies its address, /c/<id>;
+  // identical units get the stored one's. A failed or slow save (rate limit, network, API down, over 5 s) copies a
+  // fragment link instead, so sharing never stops working. Safari only lets the clipboard be written inside the click,
+  // so it gets a ClipboardItem whose text is a promise; elsewhere the text is awaited and written after.
   const onShare = async () => {
-    const hash = "#c=" + Sh.encode(unitsRef.current);
-    const url = location.origin + location.pathname + hash;
+    if (sharing) return;
+    const us = unitsRef.current, code = Sh.encode(us), hash = "#c=" + code;
+    const linkUrl = location.origin + "/" + hash;
+    setSharing(true);
+    const saved = import("./Compositions").then(m => m.shareComposition(us)).catch(() => null);
+    const hex = Promise.race([saved, new Promise<null>(r => setTimeout(() => r(null), 5000))]);
+    const url = hex.then(h => (h ? location.origin + "/c/" + h : linkUrl));
+    hex.then(h => {
+      setSharing(false);
+      // the address names it, unless the units changed while it saved
+      if (h && Sh.encode(unitsRef.current) === code) showComposition(h, unitsRef.current);
+    });
     const done = () => { setShared(true); clearTimeout(shareTimer.current); shareTimer.current = setTimeout(() => setShared(false), 1500); };
-    try { await navigator.clipboard.writeText(url); done(); return; } catch (e) { /* blocked or missing */ }
+    if (typeof ClipboardItem === "function" && navigator.clipboard && typeof navigator.clipboard.write === "function") {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": url.then(u => new Blob([u], { type: "text/plain" })) })]);
+        done();
+        return;
+      } catch (e) { /* blocked: try the plain way below */ }
+    }
+    const u = await url;
+    try { await navigator.clipboard.writeText(u); done(); return; } catch (e) { /* blocked or missing */ }
     if (typeof navigator.share === "function") {
-      try { await navigator.share({ url }); } catch (e) { /* dismissed */ }
+      try { await navigator.share({ url: u }); } catch (e) { /* dismissed */ }
       return;
     }
+    // neither: leave it in the address bar to copy by hand (a saved composition's address is there already)
+    if (await hex) return;
     ownHash.current = hash;
-    location.hash = hash;
+    if (location.pathname === "/") location.hash = hash;
+    else history.replaceState(null, "", "/" + hash);
   };
   const midiLive = !!(midi.port && midi.port.state === "connected");
   const midiOut = midi.port ? midi.port.id : midi.wanted ? "wanted" : "";
@@ -771,6 +826,14 @@ export default function Chime() {
             faded={focused != null && u.channel !== focused} />
         ))}
       </div>
+
+      {/* an address that didn't load says so in one line, upper left, until CLOSE or a press on a unit */}
+      {notice && (
+        <div role="status" className="fixed top-[calc(16px+env(safe-area-inset-top,0px))] left-[calc(16px+env(safe-area-inset-left,0px))] z-40 flex max-w-[calc(100vw-108px)] items-center gap-2 border border-foreground bg-background py-1 pr-1 pl-2.5 text-[11px] tracking-[.08em]">
+          <span className="truncate">{notice}</span>
+          <Button onClick={() => setNotice("")}>CLOSE</Button>
+        </div>
+      )}
 
       {/* the active channels, lower left, while units use two or more: one ink square each, packed down the columns
           (1 top left, 2 under it, 3 top of the next column), up to 8 columns; a square focuses its channel (other units
@@ -873,10 +936,10 @@ export default function Chime() {
           screens); phones and tablets have no AUDIO, so their row is SHARE, RESET, MIDI */}
       {/* beside the upright channel strip (44 px and an 8 px gap) the narrow row gives up 52 px */}
       <div className={`fixed right-[calc(16px+env(safe-area-inset-right,0px))] bottom-[calc(16px+env(safe-area-inset-bottom,0px))] z-40 flex gap-2 *:h-11 *:w-[min(76px,calc((100vw-56px)/4))] *:px-1 touch:*:w-[76px]${usedChannels.size > 1 ? " max-sm:*:w-[min(76px,calc((100vw-108px)/4))] max-sm:touch:*:w-[min(76px,calc((100vw-100px)/3))]" : ""}`}>
-      {/* SHARE copies a link to the composition; where the clipboard is blocked it offers the share sheet, and failing
-          that leaves the link in the address bar */}
-      <Button onClick={onShare}>
-        {shared ? "COPIED" : "SHARE"}
+      {/* SHARE saves the composition and copies its address (a fragment link if the save fails); where the clipboard
+          is blocked it offers the share sheet, and failing that leaves the link in the address bar */}
+      <Button onClick={onShare} disabled={sharing}>
+        {sharing ? "SHARING…" : shared ? "COPIED" : "SHARE"}
       </Button>
 
       {/* RESET goes back to one default unit at once, with no confirmation */}

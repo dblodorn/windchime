@@ -3,14 +3,10 @@
 // Only operations the Relay compiler persisted from this app's source are forwarded, by id: forwarding query text
 // would let anything that can make a same-origin request run any operation the key allows. The visitor's IP goes
 // along as `x-end-user-ip`, which keys the API's per-visitor save limit. No cookie or other header is forwarded.
-import persistedOperations from "../../../lib/server/persisted-operations.json";
+import { persistedText, runPersisted } from "../../../lib/server/api.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-// persisted id → operation text
-const OPERATIONS: Record<string, string> = persistedOperations;
-const API_URL = process.env.DMBK_GRAPHQL_API_URL || "https://graphql.dmbk.network/graphql";
 
 const answer = (status: number, body: unknown) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
 const refuse = (status: number, code: string, message: string, headers: Record<string, string> = {}) =>
@@ -35,37 +31,13 @@ export async function POST(req: Request) {
 
   let body: { id?: unknown; variables?: unknown } | null;
   try { body = await req.json(); } catch { body = null; }
-  // hasOwn, so an id like "constructor" can't reach the prototype. A body with query text and no id lands here too.
+  // A body with query text and no id lands here too.
   const id = body && typeof body.id === "string" ? body.id : null;
-  const query = id && Object.hasOwn(OPERATIONS, id) ? OPERATIONS[id] : undefined;
-  if (!query) return refuse(400, "PERSISTED_QUERY_NOT_FOUND", "Unknown operation.");
+  if (!id || !persistedText(id)) return refuse(400, "PERSISTED_QUERY_NOT_FOUND", "Unknown operation.");
   const variables = body!.variables && typeof body!.variables === "object" ? body!.variables : {};
 
-  const key = process.env.DMBK_GRAPHQL_API_KEY;
-  if (!key && process.env.NODE_ENV === "production") throw new Error("DMBK_GRAPHQL_API_KEY is not set.");
-  const ip = visitorIp(req);
-
-  let res: Response;
-  try {
-    res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(key ? { "x-api-key": key } : {}),
-        ...(ip ? { "x-end-user-ip": ip } : {}),
-      },
-      body: JSON.stringify({ query, variables }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    });
-  } catch (err) {
-    console.error("[graphql-proxy]", err);
-    return refuse(502, "API_UNAVAILABLE", "The dmbk API could not be reached.");
-  }
-  let json: unknown;
-  try { json = await res.json(); } catch { return refuse(502, "API_UNAVAILABLE", `The dmbk API answered ${res.status} with no JSON.`); }
-  const retry = res.headers.get("retry-after");
-  return retry ? Response.json(json, { status: res.status, headers: { "cache-control": "no-store", "retry-after": retry } }) : answer(res.status, json);
+  const { status, json, retryAfter } = await runPersisted(id, variables, { ip: visitorIp(req) });
+  return retryAfter ? Response.json(json, { status, headers: { "cache-control": "no-store", "retry-after": retryAfter } }) : answer(status, json);
 }
 
 export function GET() {
