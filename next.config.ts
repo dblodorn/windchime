@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
   compiler: {
     relay: { src: ".", language: "typescript", eagerEsModules: true },
   },
+  // A composition's card (app/c/[id]/opengraph-image.tsx) is drawn per request, not prerendered like the site's,
+  // so the files it reads must be copied into its function.
+  outputFileTracingIncludes: {
+    "/c/[id]/opengraph-image": [
+      "./node_modules/@dblodorn/sound-tokens/dist/fonts/AA_Knif-mono.woff",
+      "./app/og-head.png",
+    ],
+  },
   async headers() {
     return [
       {
