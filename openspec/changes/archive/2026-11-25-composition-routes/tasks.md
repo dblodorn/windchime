@@ -4,7 +4,7 @@
 
 - [x] 1.1 Open an OpenSpec change in dmbk-graphql-api (`chime-composition-owner`) whose `chime-compositions` delta covers `creatorKey` on save, `creatorHash` (optional, set on insert only), `yours(creatorKey)` and the `creatorKey` list filter; verify `openspec validate --strict` passes for it
 - [x] 1.2 Implement it there: input validation (43 base64url chars, else `BAD_USER_INPUT`), `sha256("chime-creator:" + key)` written with `$setOnInsert`, the `yours` field, the list filter with a `{ creatorHash: 1, _id: -1 }` index, the optional `creatorHash` in the collection validator; verify with typecheck and a throwaway-collection test that a duplicate save by key B keeps key A's ownership, fingerprints of existing documents are unchanged, and a key never appears in stored documents or logs
-- [ ] 1.3 Apply the validator (`npm run chime:collection -- --apply`), deploy, and verify against production that `yours` and `creatorKey` resolve and that a keyless save still works
+- [x] 1.3 Apply the validator (`npm run chime:collection -- --apply`), deploy, and verify against production that `yours` and `creatorKey` resolve and that a keyless save still works
 
 ## 2. Shared server code and schema
 
@@ -41,4 +41,4 @@
 ## 8. Finish
 
 - [x] 8.1 Add the FEATURE changelog line, update CLAUDE.md (route, SHARE flow, device key, `lib/server/api.ts`, address rule) and check COLOPHON needs no new credit; verify `pnpm build` passes
-- [ ] 8.2 End-to-end on the preview deployment: share from one browser, open the copied `/c/` address in another (units, title, link preview), see it marked YOURS only in the first, and check 390 px and 1280 px layouts have no console errors
+- [x] 8.2 End-to-end on the preview deployment: share from one browser, open the copied `/c/` address in another (units, title, link preview), see it marked YOURS only in the first, and check 390 px and 1280 px layouts have no console errors

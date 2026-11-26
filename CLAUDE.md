@@ -154,4 +154,4 @@ Pushing to `main` deploys production on Vercel (project `windchime`, team `db13`
 - Vitest
 - Per-tube tuning in cents (true wind-chime tunings, not just 12-TET), and microtonal scales sent as MIDI pitch bend
 - Reverb/space, stereo spread of tubes
-- Deleting or renaming your own saved compositions, search in the list, a URL per saved composition
+- Deleting or renaming your own saved compositions, search in the list
