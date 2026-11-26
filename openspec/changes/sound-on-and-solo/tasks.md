@@ -1,7 +1,7 @@
 ## 1. Design system
 
-- [ ] 1.1 sound-design-system change `alert-color-and-tip` merged and published: `@dblodorn/sound-tokens` 0.2.0, `@dblodorn/sound-ui` 0.4.0
-- [ ] 1.2 Pin both in `package.json`, `pnpm install`, `pnpm build` passes; screenshots at 390 and 1280 px match the ones from before the bump (no visible change from the bump alone)
+- [x] 1.1 sound-design-system change `alert-color-and-tip` merged and published: `@dblodorn/sound-tokens` 0.2.0, `@dblodorn/sound-ui` 0.4.0
+- [x] 1.2 Pin both in `package.json`, `pnpm install`, `pnpm build` passes; screenshots at 390 and 1280 px match the ones from before the bump (no visible change from the bump alone)
 
 ## 2. Engine
 
@@ -27,7 +27,7 @@
 
 ## 6. Verification
 
-- [ ] 6.1 `pnpm typecheck` and `pnpm build`
+- [x] 6.1 `pnpm typecheck` and `pnpm build`
 - [x] 6.2 Playwright (scratch folder): every scenario in `sound-on-and-solo` and the SOUND ON fill scenario, including keyboard, touch long press (iPhone emulation), MIDI bytes unchanged under solo, reload and SHARE carrying no solo
 - [x] 6.3 Screenshots at 390 and 1280 px: landing (SOUND ON), SOUND ON with the notice, a soloed unit with its tip open
 - [ ] 6.4 Real Safari and iOS check by the user: SOUND ON starts sound, and SOLO via long press

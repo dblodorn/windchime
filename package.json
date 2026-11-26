@@ -16,8 +16,8 @@
   "dependencies": {
     "@dblodorn/casio-vz-engine": "0.1.0",
     "@dblodorn/roland-juno60-engine": "0.2.0",
-    "@dblodorn/sound-tokens": "0.1.0",
-    "@dblodorn/sound-ui": "0.3.1",
+    "@dblodorn/sound-tokens": "0.2.0",
+    "@dblodorn/sound-ui": "0.4.0",
     "@dblodorn/yamaha-dx7-engine": "0.1.0",
     "lucide-react": "^1.66.0",
     "motion": "14.3.0",

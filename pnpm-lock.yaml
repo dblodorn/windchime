@@ -15,11 +15,11 @@ importers:
         specifier: 0.2.0
         version: 0.2.0
       '@dblodorn/sound-tokens':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.2.0
+        version: 0.2.0
       '@dblodorn/sound-ui':
-        specifier: 0.3.1
-        version: 0.3.1(@dblodorn/sound-tokens@0.1.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 0.4.0
+        version: 0.4.0(@dblodorn/sound-tokens@0.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@dblodorn/yamaha-dx7-engine':
         specifier: 0.1.0
         version: 0.1.0
@@ -170,13 +170,13 @@ packages:
     resolution: {integrity: sha512-zjwvndpCP+C8IXqmc4/MccB3X93Umvvv9FLWbbBu5cpBpWyGqmmU6wb43CoA4BWMpeGZysawP8gbTt83u/+dkQ==, tarball: https://npm.pkg.github.com/download/@dblodorn/roland-juno60-engine/0.2.0/2c5a521f31b88fd6c9324aef13d21189143a0d4b}
     engines: {node: '>=22.18'}
 
-  '@dblodorn/sound-tokens@0.1.0':
-    resolution: {integrity: sha512-tgJu7QY0Ak9dh+MUWGT12WMAOHiyee1YLir+WFFIXQ2YwYIrAlQCQt+HDQwUGNOIGp1fEMtp8mMkYkZaGNJ6iA==, tarball: https://npm.pkg.github.com/download/@dblodorn/sound-tokens/0.1.0/ae76f2f6abeca39700e9a16322af88b0eb904574}
+  '@dblodorn/sound-tokens@0.2.0':
+    resolution: {integrity: sha512-8pYz8VF/kO5yj+2nCSUXudNhZs/iD4xWSnc/1Szq3vnbK4hAHKQc1bZllF4cI8HHdOAE8ngoF/TFuQpmfiNLag==, tarball: https://npm.pkg.github.com/download/@dblodorn/sound-tokens/0.2.0/42b8e02747127db87fefcc393bf3075fbe92801d}
 
-  '@dblodorn/sound-ui@0.3.1':
-    resolution: {integrity: sha512-WaXVgJVtQeAqloApn6dIXs8hUduir3v8nvj/iJ7aVcnKBpLRcbElQuLOwXRmLYsRCk3+ER6+eupsSaBYKz4h+g==, tarball: https://npm.pkg.github.com/download/@dblodorn/sound-ui/0.3.1/01f130b3d7b99a61a81de3ee743653303bfdaf41}
+  '@dblodorn/sound-ui@0.4.0':
+    resolution: {integrity: sha512-9zpzA3eg2/RdHWRNKtYLjS64MKb1bwxUWCUiKQdg8fFYAkfW8bPHr1cgivYf50MFlr4yvpECgteV1uWd/nS0mg==, tarball: https://npm.pkg.github.com/download/@dblodorn/sound-ui/0.4.0/13d8994ffac7893cfb6503b64954165685ede946}
     peerDependencies:
-      '@dblodorn/sound-tokens': '>=0.1.0 <1.0.0'
+      '@dblodorn/sound-tokens': '>=0.2.0 <1.0.0'
       react: ^19.0.0
       react-dom: ^19.0.0
 
@@ -1874,11 +1874,11 @@ snapshots:
 
   '@dblodorn/roland-juno60-engine@0.2.0': {}
 
-  '@dblodorn/sound-tokens@0.1.0': {}
+  '@dblodorn/sound-tokens@0.2.0': {}
 
-  '@dblodorn/sound-ui@0.3.1(@dblodorn/sound-tokens@0.1.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@dblodorn/sound-ui@0.4.0(@dblodorn/sound-tokens@0.2.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
-      '@dblodorn/sound-tokens': 0.1.0
+      '@dblodorn/sound-tokens': 0.2.0
       class-variance-authority: 0.7.1
       cn: 0.5.1
       radix-ui: 1.8.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
