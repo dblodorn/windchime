@@ -426,6 +426,12 @@ const channelsNow = () => Math.max(1, Math.min(MAX_OUT, actx!.destination.maxCha
 export function outputChannels() { return actx ? outN : null; }
 // listeners get the channel count when audio starts and whenever it changes; returns the unsubscribe
 export function onOutputChange(fn: (n: number) => void): () => void { outListeners.add(fn); return () => outListeners.delete(fn); }
+// whether the browser is making sound: the context exists and runs (not before the first tap, suspended or interrupted)
+export function audioRunning() { return !!actx && actx.state === "running"; }
+// listeners get audioRunning() when the context is made and on every state change; returns the unsubscribe
+const stateListeners = new Set<(running: boolean) => void>();
+export function onAudioState(fn: (running: boolean) => void): () => void { stateListeners.add(fn); return () => stateListeners.delete(fn); }
+const audioStateChanged = () => { const r = audioRunning(); stateListeners.forEach(fn => fn(r)); };
 // "" is the system default. Before audio starts it is only remembered: startAudio opens the context on it when
 // `listed` (the browser lists that device now), and switches to it right after otherwise, since an unknown id in
 // the constructor breaks the context instead of failing.
@@ -498,9 +504,13 @@ function setupOutput() {
   actx = Tone!.getContext().rawContext as AudioContext;
   outN = channelsNow();
   buildMerger();
-  if (actx.addEventListener) actx.addEventListener("sinkchange", refreshOutput);
+  if (actx.addEventListener) {
+    actx.addEventListener("sinkchange", refreshOutput);
+    actx.addEventListener("statechange", audioStateChanged);
+  }
   master = merger;
   outListeners.forEach(fn => fn(outN));
+  audioStateChanged();
 }
 // Must be called from a click/tap handler: it unlocks and resumes audio synchronously inside the tap, then waits.
 export async function startAudio() {

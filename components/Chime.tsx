@@ -12,7 +12,7 @@ import * as M from "../lib/midiout";
 import * as Sh from "../lib/share";
 import { EXTERNAL_SYNTHS, synthOf } from "../lib/synths";
 import {
-  Button, Checkbox, Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, InkContext,
+  ActionTip, Button, Checkbox, Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, InkContext,
   inkProps, NotePads, Param, ParamSelect, ParamSlider, Popover, PopoverContent, PopoverTrigger, RoundIconButton, SearchSelect,
   SelectItem, Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger, TypeCredit, type Ink, type SearchGroup,
 } from "@dblodorn/sound-ui";
@@ -193,9 +193,10 @@ interface ChimeUnitProps {
   groups: SearchGroup[]; outChannels: number; midiLink: number; sendProg: boolean; sendCC: boolean;
   onChange: (id: string, patch: UnitPatch) => void; onCopy: (id: string, at: { x: number; y: number }) => void;
   onRemove: (id: string) => void; onFront: (id: string) => void; faded: boolean;
+  soloed: boolean; onSolo: (id: string) => void; onSoloOff: () => void;
 }
 
-const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded }: ChimeUnitProps) {
+const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVersion, groups, outChannels, midiLink, sendProg, sendCC, onChange, onCopy, onRemove, onFront, faded, soloed, onSolo, onSoloOff }: ChimeUnitProps) {
   const { id } = unit;
   const name = `CHIME ${index + 1}`;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -372,11 +373,19 @@ const ChimeUnit = memo(function ChimeUnit({ unit, index, count, mainRef, fontsVe
         <RoundIconButton aria-label="COPY" disabled={count >= MAX_UNITS} onClick={() => onCopy(id, { x: Math.round(x.get()), y: Math.round(y.get()) })} className="absolute top-2.5 left-2.5">
           <CopyPlus size={16} aria-hidden="true" shapeRendering="crispEdges" />
         </RoundIconButton>
-        <RoundIconButton aria-label="SOUND" aria-pressed={unit.sound} onClick={onSound} className="absolute top-2.5 right-2.5">
-          {unit.sound
-            ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
-            : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
-        </RoundIconButton>
+        {/* SOUND's tip holds SOLO (SOLO OFF on the soloed unit) while the page has two or more units: hover, keyboard
+            focus or a long press opens it, and a long press doesn't also toggle SOUND */}
+        <ActionTip
+          label={`SOLO ${name}`}
+          disabled={count < 2}
+          content={<Button onClick={() => (soloed ? onSoloOff() : onSolo(id))}>{soloed ? "SOLO OFF" : "SOLO"}</Button>}
+        >
+          <RoundIconButton aria-label="SOUND" aria-pressed={unit.sound} onClick={onSound} className="absolute top-2.5 right-2.5">
+            {unit.sound
+              ? <Volume2 size={16} aria-hidden="true" shapeRendering="crispEdges" />
+              : <VolumeX size={16} aria-hidden="true" shapeRendering="crispEdges" />}
+          </RoundIconButton>
+        </ActionTip>
         <RoundIconButton aria-label="NOTES" aria-pressed={unit.notes} aria-controls={`${p}-notes`} onClick={() => set({ notes: !unit.notes })} className="absolute bottom-2.5 left-2.5">
           <EighthNote size={16} aria-hidden="true" shapeRendering="crispEdges" />
         </RoundIconButton>
@@ -498,6 +507,14 @@ export default function Chime({ initial, notice: noticeText }: { initial?: { id:
   useEffect(() => { if (focused == null && focus != null) setFocus(null); }, [focus, focused]);
   const focusRef = useRef<number | null>(null);
   focusRef.current = focused;
+  // solo: one unit sounding and the rest muted and faded; `before` is every unit's SOUND before the first SOLO, which
+  // SOLO OFF restores. Never stored. Anything else that changes a SOUND or the set of units ends it (the effect below).
+  const [solo, setSolo] = useState<{ id: string; before: Record<string, boolean> } | null>(null);
+  const soloRef = useRef(solo);
+  soloRef.current = solo;
+  // whether the browser's audio runs: false on every load (and on the server) until a tap starts it, and again when
+  // the browser suspends or interrupts it; SOUND ON shows while it's false
+  const [audioOn, setAudioOn] = useState(false);
   const loaded = useRef(false);
   const ownHash = useRef<string | null>(null);
   const [shared, setShared] = useState(false);
@@ -601,7 +618,6 @@ export default function Chime({ initial, notice: noticeText }: { initial?: { id:
     );
   }, [replaceComposition, showComposition]);
   const getUnits = useCallback(() => unitsRef.current, []);
-
   const change = useCallback((id: string, patch: UnitPatch) => setUnits(us => us.map(u => (u.id === id ? { ...u, ...patch } : u))), []);
   // a copy takes the source's state, the lowest free channel, sits 24 px right and down, and goes on top
   const copy = useCallback((id: string, at: { x: number; y: number }) => setUnits(us => {
@@ -644,6 +660,44 @@ export default function Chime({ initial, notice: noticeText }: { initial?: { id:
     const f = focusRef.current, u = unitsRef.current.find(v => v.id === id);
     if (f != null && u && u.channel !== f) setFocus(null);
   }, [front]);
+
+  // SOUND ON: audio starts inside the click, then every unit turns on, quietly (no arpeggio each)
+  const soundOn = useCallback(() => {
+    E.startAudio().then(
+      () => setUnits(cur => cur.map(u => (u.sound ? u : { ...u, sound: true, soundQuiet: true }))),
+      err => console.error("could not start audio", err),
+    );
+  }, []);
+  // SOLO: this unit on, every other off, on top, channel focus ended; switching solo keeps the first `before`
+  const soloUnit = useCallback((id: string) => {
+    E.startAudio().then(() => {
+      const us = unitsRef.current;
+      if (!us.some(u => u.id === id)) return;
+      const before = soloRef.current?.before ?? Object.fromEntries(us.map(u => [u.id, u.sound]));
+      setUnits(us.map(u => (u.id === id ? (u.sound ? u : { ...u, sound: true, soundQuiet: true }) : u.sound ? { ...u, sound: false } : u)));
+      setSolo({ id, before });
+      front(id);
+      setFocus(null);
+    }, err => console.error("could not start audio", err));
+  }, [front]);
+  // SOLO OFF: every unit back to its SOUND before the first SOLO (the ones turning on, quietly)
+  const soloOff = useCallback(() => {
+    const s = soloRef.current;
+    if (!s) return;
+    setUnits(us => us.map(u => {
+      const on = s.before[u.id] ?? false;
+      return on === u.sound ? u : { ...u, sound: on, soundQuiet: true };
+    }));
+    setSolo(null);
+  }, []);
+  // solo ends without restoring once the units or their SOUND differ from what it set: a SOUND button, SOUND ON,
+  // COPY, REMOVE, RESET, a link or a saved composition all land here
+  useEffect(() => {
+    if (!solo) return;
+    const ids = units.map(u => u.id).sort().join(), was = Object.keys(solo.before).sort().join();
+    if (ids !== was || units.some(u => u.sound !== (u.id === solo.id))) setSolo(null);
+  }, [units, solo]);
+  useEffect(() => { setAudioOn(E.audioRunning()); return E.onAudioState(setAudioOn); }, []);
 
   // bundled General MIDI soundfont
   useEffect(() => {
@@ -823,15 +877,22 @@ export default function Chime({ initial, notice: noticeText }: { initial?: { id:
         {units.map((u, i) => (
           <ChimeUnit key={u.id} unit={u} index={i} count={units.length} mainRef={mainRef} fontsVersion={fontsVersion} groups={groups} outChannels={outChannels}
             midiLink={midi.linkSeq} sendProg={sendProg} sendCC={sendCC} onChange={change} onCopy={copy} onRemove={remove} onFront={pressUnit}
-            faded={focused != null && u.channel !== focused} />
+            faded={focused != null ? u.channel !== focused : solo != null && u.id !== solo.id}
+            soloed={solo?.id === u.id} onSolo={soloUnit} onSoloOff={soloOff} />
         ))}
       </div>
 
-      {/* an address that didn't load says so in one line, upper left, until CLOSE or a press on a unit */}
-      {notice && (
-        <div role="status" className="fixed top-[calc(16px+env(safe-area-inset-top,0px))] left-[calc(16px+env(safe-area-inset-left,0px))] z-40 flex max-w-[calc(100vw-108px)] items-center gap-2 border border-foreground bg-background py-1 pr-1 pl-2.5 text-[11px] tracking-[.08em]">
-          <span className="truncate">{notice}</span>
-          <Button onClick={() => setNotice("")}>CLOSE</Button>
+      {/* upper left, one column: SOUND ON (the alert fill, the one red on the page) while the browser's audio isn't
+          running, and under it the one-line notice of an address that didn't load, until CLOSE or a press on a unit */}
+      {(!audioOn || notice) && (
+        <div className="fixed top-[calc(16px+env(safe-area-inset-top,0px))] left-[calc(16px+env(safe-area-inset-left,0px))] z-40 flex max-w-[calc(100vw-108px)] flex-col items-start gap-2">
+          {!audioOn && <Button variant="alert" className="h-11" onClick={soundOn}>SOUND ON</Button>}
+          {notice && (
+            <div role="status" className="flex max-w-full items-center gap-2 border border-foreground bg-background py-1 pr-1 pl-2.5 text-[11px] tracking-[.08em]">
+              <span className="truncate">{notice}</span>
+              <Button onClick={() => setNotice("")}>CLOSE</Button>
+            </div>
+          )}
         </div>
       )}
 
