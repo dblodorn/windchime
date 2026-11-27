@@ -7,7 +7,7 @@ Defines the parameter sheet's 1-bit visual language and how its controls (button
 ## Requirements
 
 ### Requirement: Two-color, monospace, square visual language
-Every element of the page SHALL render with white (`#ffffff`) and one ink color for text, backgrounds, borders, outlines and icons. All control states and popups are included. The ink is pure black (`#000000`) everywhere except inside a chime unit, where it is the unit's channel ink (see `channel-colors`): the unit's drawing, round buttons, notes drawer, settings popover and the lists opened from that popover. Channel 1's ink is black. The other exceptions are the channel legend's swatches in the MIDI OUT dialog, which show each channel's ink, and the active-channels strip (see `channel-focus`), whose squares are filled with their channel's ink and show their number in white. While a channel is focused, units on other channels draw in a 25% tint of their ink (the ink mixed with white) in place of the ink, on opaque white. Disabled controls MAY use reduced opacity of their ink or white. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the four 30 px circular buttons on each unit's drawing:
+Every element of the page SHALL render with white (`#ffffff`) and one ink color for text, backgrounds, borders, outlines and icons. All control states and popups are included. The ink is pure black (`#000000`) everywhere except inside a chime unit, where it is the unit's channel ink (see `channel-colors`): the unit's drawing, round buttons, notes drawer, settings popover and the lists opened from that popover. Channel 1's ink is black. The other exceptions are the channel legend's swatches in the MIDI OUT dialog, which show each channel's ink, and the active-channels strip (see `channel-focus`), whose squares are filled with their channel's ink and show their number in white. While a channel is focused, units on other channels draw in a 25% tint of their ink (the ink mixed with white) in place of the ink, on opaque white; while a unit is soloed (see `sound-on-and-solo`), every other unit does. The SOUND ON button (see `sound-on-and-solo`) is filled with the design system's alert color, Sanzo Wada's Spectrum Red (`#f20000`), with white text: the one alert fill on the page. Disabled controls MAY use reduced opacity of their ink or white. All text SHALL use Courier Prime, with a monospace fallback. No element SHALL have a box shadow, and no element SHALL have rounded corners except the four 30 px circular buttons on each unit's drawing:
 - the COPY button in the top-left corner, which shows a copy-plus icon
 - the SOUND toggle in the top-right corner, which shows a speaker icon (on) or a muted-speaker icon (off)
 - the SETTINGS button in the bottom-right corner, which shows a settings icon
@@ -37,6 +37,10 @@ The page SHALL use a light color scheme only, regardless of the operating system
 - **WHEN** units are on channels 1 and 5 and channel 5 is focused
 - **THEN** the active-channels strip's squares are filled with `#000000` and `#1b8e13` with white numbers
 - **AND** every computed color in the channel 1 unit is `#bfbfbf` or white, and its computed opacity is 1
+
+#### Scenario: SOUND ON fill
+- **WHEN** the page loads, before audio has started
+- **THEN** the SOUND ON button's computed background color is `#f20000`, its text color is white, and its border radius is `0px`
 
 ### Requirement: Parameter rows
 Each parameter SHALL be shown as a row with its uppercase label on the left, a dotted leader filling the space, and its current value on the right (`LABEL ....... value`), with the control beneath. The value text MUST update as the control changes.
